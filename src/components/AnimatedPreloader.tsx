@@ -31,7 +31,10 @@ export default function AnimatedPreloader({ finishLoading }: AnimatedPreloaderPr
 
         {/* Center logo */}
         <div className="logo-wrapper">
-          <img src="/srl-logo.png" alt="SRL Logo" className="animated-logo" />
+          <div className="srl-text-logo">
+            <div className="logo-line1">SRL</div>
+            <div className="logo-line2">MMPSRPC, KSV</div>
+          </div>
           {/* Pulse effect */}
           <div className="pulse-ring"></div>
         </div>
