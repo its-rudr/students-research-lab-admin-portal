@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Outlet, useLocation } from "react-router-dom";
+import { Outlet, useLocation, useNavigate } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   LayoutDashboard,
@@ -14,10 +14,12 @@ import {
   X,
   ChevronRight,
   Beaker,
+  LogOut,
 } from "lucide-react";
 import { NavLink } from "react-router-dom";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
+import { useToast } from "@/hooks/use-toast";
 
 const navItems = [
   { title: "Dashboard", path: "/", icon: LayoutDashboard },
@@ -42,7 +44,29 @@ const pageNames: Record<string, string> = {
 export default function AdminLayout() {
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const location = useLocation();
+  const navigate = useNavigate();
+  const { toast } = useToast();
   const currentPage = pageNames[location.pathname] || "Dashboard";
+
+  const handleLogout = async () => {
+    try {
+      localStorage.removeItem('authToken');
+      localStorage.removeItem('userEmail');
+      localStorage.removeItem('userData');
+      
+      toast({
+        title: "Logged out",
+        description: "You have been successfully logged out.",
+      });
+      navigate("/login");
+    } catch (error: any) {
+      toast({
+        variant: "destructive",
+        title: "Error",
+        description: error.message || "Failed to logout",
+      });
+    }
+  };
 
   return (
     <div className="flex h-screen w-full overflow-hidden bg-background">
@@ -149,6 +173,15 @@ export default function AdminLayout() {
                 </div>
               </AnimatePresence>
             </div>
+            <Button
+              variant="ghost"
+              size="icon"
+              onClick={handleLogout}
+              className="rounded-xl text-muted-foreground hover:text-destructive"
+              title="Logout"
+            >
+              <LogOut className="w-[18px] h-[18px]" />
+            </Button>
           </div>
         </header>
 

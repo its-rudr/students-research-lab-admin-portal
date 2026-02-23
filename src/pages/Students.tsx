@@ -1,39 +1,135 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { Search, Plus, MoreHorizontal, Edit, Trash2, Eye, Filter, X } from "lucide-react";
+import { Search, Plus, Filter, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
+import { supabase } from "@/lib/supabaseClient";
+import { useToast } from "@/hooks/use-toast";
 
-const students = [
-  { id: 1, name: "Ayesha Khan", email: "ayesha@lab.edu", dept: "Computer Science", field: "NLP", score: 94, initials: "AK" },
-  { id: 2, name: "Rahul Verma", email: "rahul@lab.edu", dept: "Computer Science", field: "Computer Vision", score: 89, initials: "RV" },
-  { id: 3, name: "Sara Ali", email: "sara@lab.edu", dept: "Biotechnology", field: "Bioinformatics", score: 85, initials: "SA" },
-  { id: 4, name: "James Chen", email: "james@lab.edu", dept: "Mechanical Eng.", field: "Robotics", score: 82, initials: "JC" },
-  { id: 5, name: "Priya Patel", email: "priya@lab.edu", dept: "Data Science", field: "Machine Learning", score: 78, initials: "PP" },
-  { id: 6, name: "Fatima Noor", email: "fatima@lab.edu", dept: "Computer Science", field: "Cybersecurity", score: 75, initials: "FN" },
-  { id: 7, name: "Omar Hassan", email: "omar@lab.edu", dept: "Electrical Eng.", field: "IoT Systems", score: 71, initials: "OH" },
-  { id: 8, name: "Li Wei", email: "li@lab.edu", dept: "Mathematics", field: "Cryptography", score: 88, initials: "LW" },
-];
+// Define the student type based on your Supabase table structure
+interface Student {
+  id: number;
+  student_name: string;
+  enrollment_no?: string;
+  institute_name?: string;
+  department?: string;
+  semester?: string;
+  division?: string;
+  batch?: string;
+  email: string;
+  contact_no?: string;
+  gender?: string;
+  member_type?: string;
+}
 
 export default function Students() {
+  const [students, setStudents] = useState<Student[]>([]);
+  const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
   const [open, setOpen] = useState(false);
+  const [formData, setFormData] = useState({
+    student_name: "",
+    enrollment_no: "",
+    email: "",
+    contact_no: "",
+    department: "",
+    institute_name: "",
+    semester: "",
+    division: "",
+    batch: "",
+    gender: "male",
+    member_type: "member",
+  });
+  const { toast } = useToast();
+
+  // Fetch students from Supabase
+  useEffect(() => {
+    fetchStudents();
+  }, []);
+
+  const fetchStudents = async () => {
+    try {
+      setLoading(true);
+      const { data, error } = await supabase
+        .from('students_details')
+        .select('*');
+
+      if (error) throw error;
+      setStudents(data || []);
+    } catch (error: any) {
+      console.error('Supabase error:', error);
+      toast({
+        variant: "destructive",
+        title: "Error fetching students",
+        description: error.message,
+      });
+      setStudents([]); // Set empty array on error so page still renders
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Add new student
+  const handleAddStudent = async () => {
+    try {
+      const { data, error } = await supabase
+        .from('students_details')
+        .insert([formData])
+        .select();
+
+      if (error) throw error;
+
+      setStudents([data[0], ...students]);
+      setOpen(false);
+      setFormData({
+        student_name: "",
+        enrollment_no: "",
+        email: "",
+        contact_no: "",
+        department: "",
+        institute_name: "",
+        semester: "",
+        division: "",
+        batch: "",
+        gender: "male",
+        member_type: "member",
+      });
+      
+      toast({
+        title: "Student added",
+        description: "New student has been added successfully.",
+      });
+    } catch (error: any) {
+      toast({
+        variant: "destructive",
+        title: "Error adding student",
+        description: error.message,
+      });
+    }
+  };
+
+  // Get initials for avatar
+  const getInitials = (name: string) => {
+    if (!name) return 'NA';
+    return name
+      .split(' ')
+      .map(n => n[0])
+      .join('')
+      .toUpperCase()
+      .slice(0, 2);
+  };
 
   const filtered = students.filter(
     (s) =>
-      s.name.toLowerCase().includes(search.toLowerCase()) ||
-      s.field.toLowerCase().includes(search.toLowerCase()) ||
-      s.dept.toLowerCase().includes(search.toLowerCase())
+      (s.student_name && s.student_name.toLowerCase().includes(search.toLowerCase())) ||
+      (s.enrollment_no && s.enrollment_no.toLowerCase().includes(search.toLowerCase())) ||
+      (s.email && s.email.toLowerCase().includes(search.toLowerCase())) ||
+      (s.department && s.department.toLowerCase().includes(search.toLowerCase())) ||
+      (s.batch && s.batch.toLowerCase().includes(search.toLowerCase()))
   );
 
   return (
@@ -43,7 +139,7 @@ export default function Students() {
         <div className="relative w-full sm:w-80">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
           <Input
-            placeholder="Search students, fields..."
+            placeholder="Search students, enrollment, batch..."
             className="pl-9 rounded-xl border-border bg-card"
             value={search}
             onChange={(e) => setSearch(e.target.value)}
@@ -61,47 +157,124 @@ export default function Students() {
                 Add Student
               </Button>
             </DialogTrigger>
-            <DialogContent className="rounded-2xl sm:max-w-md">
+            <DialogContent className="rounded-2xl sm:max-w-md max-h-[85vh] overflow-y-auto">
               <DialogHeader>
                 <DialogTitle>Add New Student</DialogTitle>
               </DialogHeader>
               <div className="space-y-4 pt-2">
                 <div className="space-y-1.5">
-                  <Label>Full Name</Label>
-                  <Input placeholder="Enter student name" className="rounded-xl" />
+                  <Label>Student Name</Label>
+                  <Input 
+                    placeholder="Enter student name" 
+                    className="rounded-xl"
+                    value={formData.student_name}
+                    onChange={(e) => setFormData({ ...formData, student_name: e.target.value })}
+                  />
+                </div>
+                <div className="space-y-1.5">
+                  <Label>Enrollment Number</Label>
+                  <Input 
+                    placeholder="e.g. 2024CS001" 
+                    className="rounded-xl"
+                    value={formData.enrollment_no}
+                    onChange={(e) => setFormData({ ...formData, enrollment_no: e.target.value })}
+                  />
                 </div>
                 <div className="space-y-1.5">
                   <Label>Email</Label>
-                  <Input type="email" placeholder="student@lab.edu" className="rounded-xl" />
+                  <Input 
+                    type="email" 
+                    placeholder="student@example.com" 
+                    className="rounded-xl"
+                    value={formData.email}
+                    onChange={(e) => setFormData({ ...formData, email: e.target.value })}
+                  />
                 </div>
                 <div className="space-y-1.5">
-                  <Label>Research Domain</Label>
-                  <Input placeholder="e.g. Natural Language Processing" className="rounded-xl" />
+                  <Label>Contact Number</Label>
+                  <Input 
+                    placeholder="e.g. +91 98765 43210" 
+                    className="rounded-xl"
+                    value={formData.contact_no}
+                    onChange={(e) => setFormData({ ...formData, contact_no: e.target.value })}
+                  />
                 </div>
                 <div className="space-y-1.5">
-                  <Label>Role</Label>
-                  <Select>
+                  <Label>Institute Name</Label>
+                  <Input 
+                    placeholder="e.g. ABC Institute of Technology" 
+                    className="rounded-xl"
+                    value={formData.institute_name}
+                    onChange={(e) => setFormData({ ...formData, institute_name: e.target.value })}
+                  />
+                </div>
+                <div className="space-y-1.5">
+                  <Label>Department</Label>
+                  <Input 
+                    placeholder="e.g. Computer Science" 
+                    className="rounded-xl"
+                    value={formData.department}
+                    onChange={(e) => setFormData({ ...formData, department: e.target.value })}
+                  />
+                </div>
+                <div className="grid grid-cols-3 gap-3">
+                  <div className="space-y-1.5">
+                    <Label>Semester</Label>
+                    <Input 
+                      placeholder="e.g. 5" 
+                      className="rounded-xl"
+                      value={formData.semester}
+                      onChange={(e) => setFormData({ ...formData, semester: e.target.value })}
+                    />
+                  </div>
+                  <div className="space-y-1.5">
+                    <Label>Division</Label>
+                    <Input 
+                      placeholder="e.g. A" 
+                      className="rounded-xl"
+                      value={formData.division}
+                      onChange={(e) => setFormData({ ...formData, division: e.target.value })}
+                    />
+                  </div>
+                  <div className="space-y-1.5">
+                    <Label>Batch</Label>
+                    <Input 
+                      placeholder="e.g. 2024" 
+                      className="rounded-xl"
+                      value={formData.batch}
+                      onChange={(e) => setFormData({ ...formData, batch: e.target.value })}
+                    />
+                  </div>
+                </div>
+                <div className="space-y-1.5">
+                  <Label>Gender</Label>
+                  <Select value={formData.gender} onValueChange={(value) => setFormData({ ...formData, gender: value })}>
                     <SelectTrigger className="rounded-xl">
-                      <SelectValue placeholder="Select role" />
+                      <SelectValue placeholder="Select gender" />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="researcher">Researcher</SelectItem>
-                      <SelectItem value="intern">Intern</SelectItem>
-                      <SelectItem value="lead">Team Lead</SelectItem>
-                      <SelectItem value="assistant">Research Assistant</SelectItem>
+                      <SelectItem value="male">Male</SelectItem>
+                      <SelectItem value="female">Female</SelectItem>
+                      <SelectItem value="other">Other</SelectItem>
                     </SelectContent>
                   </Select>
                 </div>
                 <div className="space-y-1.5">
-                  <Label>Profile Image</Label>
-                  <div className="border-2 border-dashed border-border rounded-xl p-6 text-center cursor-pointer hover:border-primary/40 transition-colors">
-                    <p className="text-sm text-muted-foreground">Click to upload or drag & drop</p>
-                    <p className="text-xs text-muted-foreground/60 mt-1">PNG, JPG up to 5MB</p>
-                  </div>
+                  <Label>Member Type</Label>
+                  <Select value={formData.member_type} onValueChange={(value) => setFormData({ ...formData, member_type: value })}>
+                    <SelectTrigger className="rounded-xl">
+                      <SelectValue placeholder="Select member type" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="member">Member</SelectItem>
+                      <SelectItem value="lead">Lead</SelectItem>
+                      <SelectItem value="coordinator">Coordinator</SelectItem>
+                    </SelectContent>
+                  </Select>
                 </div>
                 <div className="flex justify-end gap-2 pt-2">
                   <Button variant="outline" className="rounded-xl" onClick={() => setOpen(false)}>Cancel</Button>
-                  <Button className="rounded-xl" onClick={() => setOpen(false)}>Add Student</Button>
+                  <Button className="rounded-xl" onClick={handleAddStudent}>Add Student</Button>
                 </div>
               </div>
             </DialogContent>
@@ -109,90 +282,82 @@ export default function Students() {
         </div>
       </div>
 
-      {/* Table */}
-      <motion.div
-        initial={{ opacity: 0, y: 8 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.3 }}
-        className="glass-card rounded-2xl overflow-hidden"
-      >
-        <div className="overflow-x-auto">
-          <table className="w-full">
-            <thead>
-              <tr className="border-b border-border">
-                <th className="text-left text-xs font-medium text-muted-foreground uppercase tracking-wider px-5 py-3">Student</th>
-                <th className="text-left text-xs font-medium text-muted-foreground uppercase tracking-wider px-5 py-3 hidden md:table-cell">Department</th>
-                <th className="text-left text-xs font-medium text-muted-foreground uppercase tracking-wider px-5 py-3 hidden sm:table-cell">Research Field</th>
-                <th className="text-left text-xs font-medium text-muted-foreground uppercase tracking-wider px-5 py-3">Score</th>
-                <th className="text-right text-xs font-medium text-muted-foreground uppercase tracking-wider px-5 py-3">Actions</th>
-              </tr>
-            </thead>
-            <tbody>
-              <AnimatePresence>
-                {filtered.map((student, i) => (
-                  <motion.tr
-                    key={student.id}
-                    initial={{ opacity: 0 }}
-                    animate={{ opacity: 1 }}
-                    transition={{ delay: i * 0.03 }}
-                    className="border-b border-border/50 last:border-0 hover:bg-muted/30 transition-colors"
-                  >
-                    <td className="px-5 py-3">
-                      <div className="flex items-center gap-3">
-                        <Avatar className="w-8 h-8">
-                          <AvatarFallback className="bg-primary/8 text-primary text-xs font-medium">
-                            {student.initials}
-                          </AvatarFallback>
-                        </Avatar>
-                        <div>
-                          <p className="text-sm font-medium text-foreground">{student.name}</p>
-                          <p className="text-xs text-muted-foreground">{student.email}</p>
-                        </div>
-                      </div>
-                    </td>
-                    <td className="px-5 py-3 hidden md:table-cell">
-                      <span className="text-sm text-foreground">{student.dept}</span>
-                    </td>
-                    <td className="px-5 py-3 hidden sm:table-cell">
-                      <span className="inline-flex items-center px-2.5 py-0.5 rounded-lg text-xs font-medium bg-primary/8 text-primary">
-                        {student.field}
-                      </span>
-                    </td>
-                    <td className="px-5 py-3">
-                      <span className="font-mono text-sm font-semibold text-foreground">{student.score}</span>
-                    </td>
-                    <td className="px-5 py-3 text-right">
-                      <DropdownMenu>
-                        <DropdownMenuTrigger asChild>
-                          <Button variant="ghost" size="icon" className="h-8 w-8 rounded-lg">
-                            <MoreHorizontal className="w-4 h-4" />
-                          </Button>
-                        </DropdownMenuTrigger>
-                        <DropdownMenuContent align="end" className="rounded-xl">
-                          <DropdownMenuItem className="gap-2 rounded-lg">
-                            <Eye className="w-3.5 h-3.5" /> View
-                          </DropdownMenuItem>
-                          <DropdownMenuItem className="gap-2 rounded-lg">
-                            <Edit className="w-3.5 h-3.5" /> Edit
-                          </DropdownMenuItem>
-                          <DropdownMenuItem className="gap-2 rounded-lg text-destructive">
-                            <Trash2 className="w-3.5 h-3.5" /> Delete
-                          </DropdownMenuItem>
-                        </DropdownMenuContent>
-                      </DropdownMenu>
-                    </td>
-                  </motion.tr>
-                ))}
-              </AnimatePresence>
-            </tbody>
-          </table>
+      {/* Loading State */}
+      {loading && (
+        <div className="flex items-center justify-center py-12">
+          <Loader2 className="w-8 h-8 animate-spin text-primary" />
         </div>
-        {filtered.length === 0 && (
-          <div className="text-center py-12 text-muted-foreground text-sm">
-            No students found matching your search.
+      )}
+
+      {/* Table */}
+      {!loading && (
+        <motion.div
+          initial={{ opacity: 0, y: 8 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.3 }}
+          className="glass-card rounded-2xl overflow-hidden"
+        >
+          <div className="overflow-x-auto">
+            <table className="w-full">
+              <thead>
+                <tr className="border-b border-border">
+                  <th className="text-left text-xs font-medium text-muted-foreground uppercase tracking-wider px-5 py-3">Student</th>
+                  <th className="text-left text-xs font-medium text-muted-foreground uppercase tracking-wider px-5 py-3 hidden lg:table-cell">Enrollment No</th>
+                  <th className="text-left text-xs font-medium text-muted-foreground uppercase tracking-wider px-5 py-3 hidden md:table-cell">Department</th>
+                  <th className="text-left text-xs font-medium text-muted-foreground uppercase tracking-wider px-5 py-3 hidden sm:table-cell">Batch</th>
+                  <th className="text-left text-xs font-medium text-muted-foreground uppercase tracking-wider px-5 py-3 hidden xl:table-cell">Member Type</th>
+                </tr>
+              </thead>
+              <tbody>
+                <AnimatePresence>
+                  {filtered.map((student, i) => (
+                    <motion.tr
+                      key={student.id}
+                      initial={{ opacity: 0 }}
+                      animate={{ opacity: 1 }}
+                      transition={{ delay: i * 0.03 }}
+                      className="border-b border-border/50 last:border-0 hover:bg-muted/30 transition-colors"
+                    >
+                      <td className="px-5 py-3">
+                        <div className="flex items-center gap-3">
+                          <Avatar className="w-8 h-8">
+                            <AvatarFallback className="bg-primary/10 text-primary text-xs font-medium">
+                              {getInitials(student.student_name)}
+                            </AvatarFallback>
+                          </Avatar>
+                          <div>
+                            <p className="text-sm font-medium text-foreground">{student.student_name || 'N/A'}</p>
+                            <p className="text-xs text-muted-foreground">{student.email || 'N/A'}</p>
+                          </div>
+                        </div>
+                      </td>
+                      <td className="px-5 py-3 hidden lg:table-cell">
+                        <span className="text-sm font-mono text-foreground">{student.enrollment_no || 'N/A'}</span>
+                      </td>
+                      <td className="px-5 py-3 hidden md:table-cell">
+                        <span className="text-sm text-foreground">{student.department || 'N/A'}</span>
+                      </td>
+                      <td className="px-5 py-3 hidden sm:table-cell">
+                        <span className="inline-flex items-center px-2.5 py-0.5 rounded-lg text-xs font-medium bg-primary/10 text-primary">
+                          {student.batch || 'N/A'}
+                        </span>
+                      </td>
+                      <td className="px-5 py-3 hidden xl:table-cell">
+                        <span className="text-sm text-foreground capitalize">{student.member_type || 'N/A'}</span>
+                      </td>
+                    </motion.tr>
+                  ))}
+                </AnimatePresence>
+              </tbody>
+            </table>
           </div>
-        )}
-      </motion.div>
+          {filtered.length === 0 && (
+            <div className="text-center py-12 text-muted-foreground text-sm">
+              No students found matching your search.
+            </div>
+          )}
+        </motion.div>
+      )}
     </div>
   );
 }
