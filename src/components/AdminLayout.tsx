@@ -77,8 +77,12 @@ export default function AdminLayout() {
       >
         {/* Logo */}
         <div className="flex items-center gap-3 px-4 h-16 border-b border-border shrink-0">
-          <div className="flex items-center justify-center w-9 h-9 rounded-xl bg-primary/10">
-            <Beaker className="w-5 h-5 text-primary" />
+          <div className="flex items-center justify-center w-9 h-9 rounded-xl overflow-hidden bg-primary/10">
+            <img 
+              src="/srl-logo.png" 
+              alt="SRL Logo" 
+              className="w-full h-full object-contain"
+            />
           </div>
           <AnimatePresence>
             {sidebarOpen && (
@@ -89,7 +93,7 @@ export default function AdminLayout() {
                 className="overflow-hidden whitespace-nowrap"
               >
                 <span className="text-sm font-semibold text-foreground">SRL Admin</span>
-                <span className="block text-[10px] text-muted-foreground font-medium">Research Lab Portal</span>
+                <span className="block text-[10px] text-muted-foreground font-medium">MMPSRPC, KSV</span>
               </motion.div>
             )}
           </AnimatePresence>
