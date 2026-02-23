@@ -160,7 +160,7 @@ export default function Attendance() {
             </table>
           </div>
           {addError && <div className="text-red-500 text-sm mt-2">{addError}</div>}
-          <Button type="submit" disabled={adding} variant="success" className="mt-2">
+          <Button type="submit" disabled={adding} variant="default" className="mt-2">
             {adding ? "Adding..." : "Submit Attendance"}
           </Button>
         </form>
@@ -213,8 +213,10 @@ export default function Attendance() {
                             <span className="text-sm font-medium text-foreground">{student.name}</span>
                           </div>
                         </td>
-                        <td className="px-1 py-2.5 text-center">
-                          {present ? <Check className="w-3.5 h-3.5 text-success" /> : <X className="w-3.5 h-3.5 text-destructive" />}
+                        <td className="px-1 py-2.5">
+                          <div className="flex items-center justify-center h-full">
+                            {present ? <Check className="w-3.5 h-3.5 text-success" /> : <X className="w-3.5 h-3.5 text-destructive" />}
+                          </div>
                         </td>
                         <td className="px-1 py-2.5 text-center">
                           {Number(student.hours).toFixed(1)}
