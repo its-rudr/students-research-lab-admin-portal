@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { motion } from "framer-motion";
-import { Plus, Search, Eye, Edit, Trash2, MoreHorizontal, FileText } from "lucide-react";
+import { Plus, Search, Eye, Edit, Trash2, MoreHorizontal, FileText, ImageOff } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
@@ -151,14 +151,13 @@ export default function Research() {
                     alt={project.title}
                     className="w-full h-48 object-cover object-center"
                     loading="lazy"
-                    onError={e => { e.currentTarget.onerror = null; e.currentTarget.src = 'https://via.placeholder.com/400x200?text=No+Image'; }}
+                    onError={e => { e.currentTarget.style.display = 'none'; }}
                   />
-                ) : (
-                  <img
-                    src="https://via.placeholder.com/400x200?text=No+Image"
-                    alt="No image available"
-                    className="w-full h-48 object-cover object-center"
-                  />
+                ) : null}
+                {!project.team_image_url && (
+                  <div className="w-full h-full flex items-center justify-center bg-primary/10">
+                    <ImageOff className="w-12 h-12 text-muted-foreground" />
+                  </div>
                 )}
               </div>
               <div className="flex-1 flex flex-col p-5">

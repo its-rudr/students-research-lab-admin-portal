@@ -20,6 +20,21 @@ export default function Login() {
     setLoading(true);
 
     try {
+      // Test credentials for development
+      if (email === "useasadmin123" && password === "1234567890") {
+        localStorage.setItem('authToken', 'test-token-dev');
+        localStorage.setItem('userEmail', email);
+        localStorage.setItem('userData', JSON.stringify({ email, role: 'admin', name: 'Admin User' }));
+
+        toast({
+          title: "Login successful",
+          description: "Welcome to the admin portal!",
+        });
+
+        navigate("/");
+        return;
+      }
+
       const response = await fetch('https://faculty-connect-five.vercel.app/api/auth/login', {
         method: 'POST',
         headers: {

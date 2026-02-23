@@ -179,7 +179,6 @@ export default function Attendance() {
             <option key={date} value={date}>{date}</option>
           ))}
         </select>
-        </h2>
       </motion.div>
       <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.1 }} className="glass-card rounded-2xl overflow-hidden">
         <div className="overflow-x-auto">
