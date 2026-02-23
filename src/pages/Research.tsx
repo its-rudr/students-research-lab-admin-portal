@@ -1,31 +1,53 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { motion } from "framer-motion";
 import { Plus, Search, Eye, Edit, Trash2, MoreHorizontal, FileText } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
+import { useCallback } from "react";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import {
-  DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
+import { supabase } from "@/lib/supabaseClient";
 
-const papers = [
-  { id: 1, title: "Attention Mechanisms in Low-Resource NLP", student: "Ayesha Khan", date: "Feb 15, 2026", status: "published", tags: ["NLP", "Deep Learning"] },
-  { id: 2, title: "Real-Time Object Detection for Autonomous Drones", student: "Rahul Verma", date: "Feb 10, 2026", status: "published", tags: ["CV", "Robotics"] },
-  { id: 3, title: "Gene Expression Clustering via Transformer Models", student: "Sara Ali", date: "Feb 8, 2026", status: "pending", tags: ["Bioinformatics", "ML"] },
-  { id: 4, title: "Soft Actuator Design Using Reinforcement Learning", student: "James Chen", date: "Feb 5, 2026", status: "pending", tags: ["Robotics", "RL"] },
-  { id: 5, title: "Federated Learning for Privacy-Preserving Healthcare", student: "Priya Patel", date: "Jan 28, 2026", status: "published", tags: ["ML", "Privacy"] },
-  { id: 6, title: "Post-Quantum Lattice-Based Key Exchange", student: "Li Wei", date: "Jan 22, 2026", status: "pending", tags: ["Cryptography"] },
-];
+
+type ResearchProject = {
+  id: number;
+  title: string;
+  description: string;
+  team_image_url?: string;
+  [key: string]: any;
+};
+
 
 export default function Research() {
   const [search, setSearch] = useState("");
   const [open, setOpen] = useState(false);
+  const [projects, setProjects] = useState<ResearchProject[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [viewProject, setViewProject] = useState<ResearchProject | null>(null);
 
-  const filtered = papers.filter(
-    (p) => p.title.toLowerCase().includes(search.toLowerCase()) || p.student.toLowerCase().includes(search.toLowerCase())
+  useEffect(() => {
+    const fetchProjects = async () => {
+      setLoading(true);
+      const { data, error } = await supabase
+        .from("research_projects")
+        .select("id, title, description, team_image_url");
+      if (error) {
+        setProjects([]);
+      } else {
+        setProjects(data || []);
+      }
+      setLoading(false);
+    };
+    fetchProjects();
+  }, []);
+
+  const filtered = projects.filter(
+    (p) =>
+      p.title.toLowerCase().includes(search.toLowerCase()) ||
+      (p.description?.toLowerCase().includes(search.toLowerCase()))
   );
 
   return (
@@ -74,42 +96,83 @@ export default function Research() {
         </Dialog>
       </div>
 
-      <div className="grid gap-3">
-        {filtered.map((paper, i) => (
-          <motion.div
-            key={paper.id}
-            initial={{ opacity: 0, y: 8 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: i * 0.04, duration: 0.3 }}
-            whileHover={{ y: -1 }}
-            className="glass-card rounded-2xl p-5 flex flex-col sm:flex-row sm:items-center gap-4"
-          >
-            <div className="flex-1 min-w-0">
-              <h3 className="text-sm font-semibold text-foreground truncate">{paper.title}</h3>
-              <p className="text-xs text-muted-foreground mt-1">{paper.student} · {paper.date}</p>
-              <div className="flex flex-wrap gap-1.5 mt-2">
-                {paper.tags.map((tag) => (
-                  <span key={tag} className="px-2 py-0.5 text-[10px] font-medium rounded-md bg-primary/8 text-primary">{tag}</span>
-                ))}
+      <Dialog open={!!viewProject} onOpenChange={() => setViewProject(null)}>
+        {viewProject && (
+          <DialogContent className="rounded-2xl w-full max-w-4xl p-0 overflow-hidden">
+            <div className="flex flex-col md:flex-row w-full h-[420px]">
+              <div className="md:w-1/2 w-full flex items-center justify-center bg-muted p-6">
+                {viewProject.team_image_url ? (
+                  <img
+                    src={viewProject.team_image_url}
+                    alt={viewProject.title}
+                    className="w-full h-80 object-contain rounded-xl shadow"
+                    loading="lazy"
+                    onError={e => { e.currentTarget.onerror = null; e.currentTarget.src = 'https://via.placeholder.com/600x300?text=No+Image'; }}
+                  />
+                ) : (
+                  <img
+                    src="https://via.placeholder.com/600x300?text=No+Image"
+                    alt="No image available"
+                    className="w-full h-80 object-contain rounded-xl shadow"
+                  />
+                )}
+              </div>
+              <div className="md:w-1/2 w-full flex flex-col p-8">
+                <DialogHeader>
+                  <DialogTitle className="mb-2 text-2xl">{viewProject.title}</DialogTitle>
+                </DialogHeader>
+                <div className="text-base text-foreground whitespace-pre-line overflow-y-auto pr-2" style={{maxHeight: '300px'}}>
+                  {viewProject.description}
+                </div>
               </div>
             </div>
-            <div className="flex items-center gap-2 shrink-0">
-              <span className={`inline-flex items-center px-2.5 py-1 rounded-lg text-xs font-medium ${paper.status === "published" ? "badge-published" : "badge-pending"}`}>
-                {paper.status === "published" ? "Published" : "Pending"}
-              </span>
-              <DropdownMenu>
-                <DropdownMenuTrigger asChild>
-                  <Button variant="ghost" size="icon" className="h-8 w-8 rounded-lg"><MoreHorizontal className="w-4 h-4" /></Button>
-                </DropdownMenuTrigger>
-                <DropdownMenuContent align="end" className="rounded-xl">
-                  <DropdownMenuItem className="gap-2 rounded-lg"><Eye className="w-3.5 h-3.5" /> View</DropdownMenuItem>
-                  <DropdownMenuItem className="gap-2 rounded-lg"><Edit className="w-3.5 h-3.5" /> Edit</DropdownMenuItem>
-                  <DropdownMenuItem className="gap-2 rounded-lg text-destructive"><Trash2 className="w-3.5 h-3.5" /> Delete</DropdownMenuItem>
-                </DropdownMenuContent>
-              </DropdownMenu>
-            </div>
-          </motion.div>
-        ))}
+          </DialogContent>
+        )}
+      </Dialog>
+      <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
+        {loading ? (
+          <div className="text-center py-10 text-muted-foreground col-span-full">Loading research projects...</div>
+        ) : filtered.length === 0 ? (
+          <div className="text-center py-10 text-muted-foreground col-span-full">No research projects found.</div>
+        ) : (
+          filtered.map((project, i) => (
+            <motion.div
+              key={project.id}
+              initial={{ opacity: 0, y: 16 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: i * 0.06, duration: 0.4 }}
+              whileHover={{ y: -2, scale: 1.02 }}
+              className="bg-white dark:bg-card shadow-xl rounded-2xl overflow-hidden flex flex-col border border-border hover:shadow-2xl transition-all duration-300"
+            >
+              <div className="w-full h-48 bg-muted flex items-center justify-center overflow-hidden">
+                {project.team_image_url ? (
+                  <img
+                    src={project.team_image_url}
+                    alt={project.title}
+                    className="w-full h-48 object-cover object-center"
+                    loading="lazy"
+                    onError={e => { e.currentTarget.onerror = null; e.currentTarget.src = 'https://via.placeholder.com/400x200?text=No+Image'; }}
+                  />
+                ) : (
+                  <img
+                    src="https://via.placeholder.com/400x200?text=No+Image"
+                    alt="No image available"
+                    className="w-full h-48 object-cover object-center"
+                  />
+                )}
+              </div>
+              <div className="flex-1 flex flex-col p-5">
+                <h3 className="text-lg font-bold text-foreground mb-2 line-clamp-2">{project.title}</h3>
+                <p className="text-sm text-muted-foreground mb-4 line-clamp-4">{project.description}</p>
+                <div className="mt-auto flex justify-end gap-2">
+                  <Button variant="outline" size="sm" className="rounded-lg" onClick={() => setViewProject(project)}>
+                    View
+                  </Button>
+                </div>
+              </div>
+            </motion.div>
+          ))
+        )}
       </div>
     </div>
   );
