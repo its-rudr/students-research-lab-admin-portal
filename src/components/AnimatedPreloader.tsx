@@ -31,10 +31,17 @@ export default function AnimatedPreloader({ finishLoading }: AnimatedPreloaderPr
 
         {/* Center logo */}
         <div className="logo-wrapper">
-          <div className="srl-text-logo">
-            <div className="logo-line1">SRL</div>
-            <div className="logo-line2">MMPSRPC, KSV</div>
-          </div>
+          <motion.div
+            initial={{ scale: 0.8, opacity: 0 }}
+            animate={{ scale: 1, opacity: 1 }}
+            transition={{ duration: 0.6, delay: 0.3 }}
+          >
+            <img 
+              src="/srl-logo.png" 
+              alt="SRL Logo" 
+              className="w-32 h-32 object-contain drop-shadow-lg"
+            />
+          </motion.div>
           {/* Pulse effect */}
           <div className="pulse-ring"></div>
         </div>
