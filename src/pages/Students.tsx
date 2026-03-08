@@ -3,12 +3,12 @@ import { motion, AnimatePresence } from "framer-motion";
 import { Search, Plus, Filter, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { supabase } from "@/lib/supabaseClient";
 import { useToast } from "@/hooks/use-toast";
+import StudentAvatar from "@/components/StudentAvatar";
 
 // Define the student type based on your Supabase table structure
 interface Student {
@@ -24,6 +24,7 @@ interface Student {
   contact_no?: string;
   gender?: string;
   member_type?: string;
+  photo_url?: string;
 }
 
 export default function Students() {
@@ -110,17 +111,6 @@ export default function Students() {
         description: error.message,
       });
     }
-  };
-
-  // Get initials for avatar
-  const getInitials = (name: string) => {
-    if (!name) return 'NA';
-    return name
-      .split(' ')
-      .map(n => n[0])
-      .join('')
-      .toUpperCase()
-      .slice(0, 2);
   };
 
   const filtered = students.filter(
@@ -320,11 +310,13 @@ export default function Students() {
                     >
                       <td className="px-5 py-3">
                         <div className="flex items-center gap-3">
-                          <Avatar className="w-8 h-8">
-                            <AvatarFallback className="bg-primary/10 text-primary text-xs font-medium">
-                              {getInitials(student.student_name)}
-                            </AvatarFallback>
-                          </Avatar>
+                          <StudentAvatar
+                            name={student.student_name || "N/A"}
+                            enrollmentNo={student.enrollment_no}
+                            photoUrl={student.photo_url}
+                            className="w-8 h-8"
+                            fallbackClassName="bg-primary/10 text-primary text-xs font-medium"
+                          />
                           <div>
                             <p className="text-sm font-medium text-foreground">{student.student_name || 'N/A'}</p>
                             <p className="text-xs text-muted-foreground">{student.email || 'N/A'}</p>

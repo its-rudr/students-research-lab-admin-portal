@@ -24,12 +24,106 @@ export default function Dashboard() {
   const [activities, setActivities] = useState<Activity[]>([]);
   const [loading, setLoading] = useState(true);
   const [activitiesLoading, setActivitiesLoading] = useState(true);
+  const [totalStudents, setTotalStudents] = useState<number>(0);
+  const [studentsCountLoading, setStudentsCountLoading] = useState(true);
+  const [attendancePercent, setAttendancePercent] = useState<number>(0);
+  const [attendanceSubtitle, setAttendanceSubtitle] = useState<string>("No attendance data");
+  const [attendanceLoading, setAttendanceLoading] = useState(true);
   const { toast } = useToast();
 
   useEffect(() => {
     fetchLeaderboard();
     fetchActivities();
+    fetchTotalStudents();
   }, []);
+
+  useEffect(() => {
+    if (!studentsCountLoading) {
+      fetchAttendanceSummary();
+    }
+  }, [studentsCountLoading, totalStudents]);
+
+  const fetchTotalStudents = async () => {
+    try {
+      setStudentsCountLoading(true);
+      const { count, error } = await supabase
+        .from("students_details")
+        .select("id", { count: "exact", head: true });
+
+      if (error) throw error;
+      setTotalStudents(count || 0);
+    } catch (error: any) {
+      console.error("Error fetching total students:", error);
+      setTotalStudents(0);
+    } finally {
+      setStudentsCountLoading(false);
+    }
+  };
+
+  const fetchAttendanceSummary = async () => {
+    try {
+      setAttendanceLoading(true);
+
+      const today = new Date().toISOString().split("T")[0];
+      let targetDate = today;
+
+      let { data: attendanceRows, error: todayError } = await supabase
+        .from("attendance")
+        .select("enrollment_no,hours")
+        .eq("date", today);
+
+      if (todayError) throw todayError;
+
+      // If today's rows don't exist, use the latest available attendance date.
+      if (!attendanceRows || attendanceRows.length === 0) {
+        const { data: latestDateRows, error: latestDateError } = await supabase
+          .from("attendance")
+          .select("date")
+          .order("date", { ascending: false })
+          .limit(1);
+
+        if (latestDateError) throw latestDateError;
+
+        const latestDate = latestDateRows?.[0]?.date;
+        if (!latestDate) {
+          setAttendancePercent(0);
+          setAttendanceSubtitle("No attendance data");
+          return;
+        }
+
+        targetDate = latestDate;
+        const { data: latestRows, error: latestRowsError } = await supabase
+          .from("attendance")
+          .select("enrollment_no,hours")
+          .eq("date", latestDate);
+
+        if (latestRowsError) throw latestRowsError;
+        attendanceRows = latestRows || [];
+      }
+
+      const presentSet = new Set(
+        (attendanceRows || [])
+          .filter((row: any) => Number(row.hours || 0) > 0)
+          .map((row: any) => row.enrollment_no)
+      );
+
+      const presentCount = presentSet.size;
+      const percent = totalStudents > 0 ? Math.round((presentCount / totalStudents) * 100) : 0;
+
+      setAttendancePercent(percent);
+      setAttendanceSubtitle(
+        targetDate === today
+          ? `${presentCount} of ${totalStudents} present`
+          : `${presentCount} of ${totalStudents} present (${targetDate})`
+      );
+    } catch (error) {
+      console.error("Error fetching attendance summary:", error);
+      setAttendancePercent(0);
+      setAttendanceSubtitle("Attendance unavailable");
+    } finally {
+      setAttendanceLoading(false);
+    }
+  };
 
   const fetchLeaderboard = async () => {
     try {
@@ -118,8 +212,20 @@ export default function Dashboard() {
     <div className="space-y-4 sm:space-y-6 max-w-7xl">
       {/* Stats Grid */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-4">
-        <StatCard icon={Users} title="Total Students" value={48} subtitle="+3 this month" delay={0} />
-        <StatCard icon={CalendarCheck} title="Today's Attendance" value="92%" subtitle="44 of 48 present" delay={0.05} />
+        <StatCard
+          icon={Users}
+          title="Total Students"
+          value={studentsCountLoading ? "..." : totalStudents}
+          subtitle="Live count from database"
+          delay={0}
+        />
+        <StatCard
+          icon={CalendarCheck}
+          title="Today's Attendance"
+          value={attendanceLoading ? "..." : `${attendancePercent}%`}
+          subtitle={attendanceLoading ? "Loading attendance..." : attendanceSubtitle}
+          delay={0.05}
+        />
         <StatCard icon={BookOpen} title="Research Papers" value={24} subtitle="6 pending review" delay={0.1} />
       </div>
 

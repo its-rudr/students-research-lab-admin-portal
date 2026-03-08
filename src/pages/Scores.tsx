@@ -3,12 +3,12 @@ import { supabase } from "../lib/supabaseClient";
 import { motion, AnimatePresence } from "framer-motion";
 import { Minus, Plus, Trophy } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { Avatar, AvatarFallback } from "@/components/ui/avatar";
+import StudentAvatar from "@/components/StudentAvatar";
 
 
 
 export default function Scores() {
-  const [scores, setScores] = useState<Array<{ enroll_no: string; score: number; name: string; initials: string }>>([]);
+  const [scores, setScores] = useState<Array<{ enroll_no: string; score: number; name: string; initials: string; photo_url?: string }>>([]);
   const [loading, setLoading] = useState(true);
   const [showAddForm, setShowAddForm] = useState(false);
   const [addDate, setAddDate] = useState("");
@@ -69,8 +69,10 @@ export default function Scores() {
       }
       // Map enrollment_no to name
       const nameMap: { [enroll_no: string]: string } = {};
+      const photoMap: { [enroll_no: string]: string | undefined } = {};
       studentsData.forEach((stu: any) => {
         nameMap[stu.enrollment_no] = stu.student_name;
+        photoMap[stu.enrollment_no] = stu.photo_url;
       });
       // Try both possible field names for enrollment number and score
       const merged = scoresData.map((row: any) => {
@@ -88,6 +90,7 @@ export default function Scores() {
           score,
           name,
           initials,
+          photo_url: photoMap[enrollNo],
         };
       });
       setScores(merged.sort((a, b) => b.score - a.score));
@@ -182,9 +185,13 @@ export default function Scores() {
                   <span className="w-7 h-7 flex items-center justify-center rounded-lg bg-primary/8 text-xs font-bold text-primary shrink-0">
                     {i + 1}
                   </span>
-                  <Avatar className="w-8 h-8 shrink-0">
-                    <AvatarFallback className="bg-primary/8 text-primary text-xs font-medium">{student.initials}</AvatarFallback>
-                  </Avatar>
+                  <StudentAvatar
+                    name={student.name}
+                    enrollmentNo={student.enroll_no}
+                    photoUrl={student.photo_url}
+                    className="w-8 h-8 shrink-0"
+                    fallbackClassName="bg-primary/8 text-primary text-xs font-medium"
+                  />
                   <div className="flex-1 min-w-0">
                     <p className="text-sm font-medium text-foreground">{student.name}</p>
                   </div>

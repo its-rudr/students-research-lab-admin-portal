@@ -1,12 +1,12 @@
 
 import { useState, useEffect } from "react";
 import { supabase } from "../lib/supabaseClient";
-import { Avatar, AvatarFallback } from "../components/ui/avatar";
 import { Check, X } from "lucide-react";
 import { Button } from "../components/ui/button";
 import { motion } from "framer-motion";
+import StudentAvatar from "@/components/StudentAvatar";
 export default function Attendance() {
-  const [students, setStudents] = useState<Array<{ enrollment_no: string; name: string; initials: string; hours: number }>>([]);
+  const [students, setStudents] = useState<Array<{ enrollment_no: string; name: string; initials: string; hours: number; photo_url?: string }>>([]);
   const [showAddForm, setShowAddForm] = useState(false);
   const [addDate, setAddDate] = useState("");
   const [addHours, setAddHours] = useState<{ [enrollment_no: string]: string }>({});
@@ -50,7 +50,7 @@ export default function Attendance() {
         setLoading(false);
         return;
       }
-      const stuMap: { [enrollment_no: string]: { name: string; initials: string } } = {};
+      const stuMap: { [enrollment_no: string]: { name: string; initials: string; photo_url?: string } } = {};
       stuData.forEach((s: any) => {
         stuMap[s.enrollment_no] = {
           name: s.student_name,
@@ -59,6 +59,7 @@ export default function Attendance() {
             .map((n: string) => n[0])
             .join("")
             .toUpperCase(),
+          photo_url: s.photo_url,
         };
       });
       const studentsList = attData.map((row: any) => {
@@ -67,6 +68,7 @@ export default function Attendance() {
           enrollment_no: row.enrollment_no,
           name: details ? details.name : row.enrollment_no,
           initials: details ? details.initials : row.enrollment_no.slice(0, 2).toUpperCase(),
+          photo_url: details?.photo_url,
           hours: row.hours,
         };
       });
@@ -207,9 +209,13 @@ export default function Attendance() {
                       <motion.tr key={student.enrollment_no} initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: i * 0.03 }} className="border-b border-border/50 last:border-0">
                         <td className="px-4 py-2.5 sticky left-0 bg-card z-10">
                           <div className="flex items-center gap-2.5">
-                            <Avatar className="w-7 h-7">
-                              <AvatarFallback className="bg-primary/8 text-primary text-[10px] font-medium">{student.initials}</AvatarFallback>
-                            </Avatar>
+                            <StudentAvatar
+                              name={student.name}
+                              enrollmentNo={student.enrollment_no}
+                              photoUrl={student.photo_url}
+                              className="w-7 h-7"
+                              fallbackClassName="bg-primary/8 text-primary text-[10px] font-medium"
+                            />
                             <span className="text-sm font-medium text-foreground">{student.name}</span>
                           </div>
                         </td>
