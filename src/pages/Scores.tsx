@@ -1,22 +1,30 @@
 import { useState, useEffect } from "react";
 import { supabase } from "../lib/supabaseClient";
 import { motion, AnimatePresence } from "framer-motion";
-import { Minus, Plus, Trophy } from "lucide-react";
+import { Trophy } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import StudentAvatar from "@/components/StudentAvatar";
+import { hasWriteAccess } from "@/lib/auth";
 
 
 
 export default function Scores() {
   const [scores, setScores] = useState<Array<{ enroll_no: string; score: number; name: string; initials: string; photo_url?: string }>>([]);
   const [loading, setLoading] = useState(true);
+  const [fetchError, setFetchError] = useState("");
   const [showAddForm, setShowAddForm] = useState(false);
   const [addDate, setAddDate] = useState("");
   const [addScores, setAddScores] = useState<{ [enroll_no: string]: string }>({});
   const [adding, setAdding] = useState(false);
   const [addError, setAddError] = useState("");
+  const canEdit = hasWriteAccess();
+
   const handleAddScores = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (!canEdit) {
+      setAddError("Only admin can add scores.");
+      return;
+    }
     setAdding(true);
     setAddError("");
     if (!addDate) {
@@ -51,18 +59,19 @@ export default function Scores() {
   useEffect(() => {
     const fetchScores = async () => {
       setLoading(true);
+      setFetchError("");
       // Fetch debate scores
       const { data: scoresData, error: scoresError } = await supabase.from("debate_scores").select();
-      console.log("debate_scores data", scoresData);
       if (scoresError || !scoresData) {
+        setFetchError(scoresError?.message || "Failed to read score records from database.");
         setScores([]);
         setLoading(false);
         return;
       }
       // Fetch student details
       const { data: studentsData, error: studentsError } = await supabase.from("students_details").select("enrollment_no,student_name");
-      console.log("students_details data", studentsData);
       if (studentsError || !studentsData) {
+        setFetchError(studentsError?.message || "Failed to read student records from database.");
         setScores([]);
         setLoading(false);
         return;
@@ -72,12 +81,18 @@ export default function Scores() {
       const photoMap: { [enroll_no: string]: string | undefined } = {};
       studentsData.forEach((stu: any) => {
         nameMap[stu.enrollment_no] = stu.student_name;
-        photoMap[stu.enrollment_no] = stu.photo_url;
+        photoMap[stu.enrollment_no] = undefined;
       });
-      // Try both possible field names for enrollment number and score
+      const scoreMap: Record<string, number> = {};
       const merged = scoresData.map((row: any) => {
         const enrollNo = row.enrollment_no || row["enroll no."] || row.enroll_no || "";
-        const score = row.total_points ?? 0;
+        const scoreValue = row.total_points ?? row.points ?? row.score ?? 0;
+        const score = Number(scoreValue) || 0;
+
+        if (enrollNo) {
+          scoreMap[enrollNo] = (scoreMap[enrollNo] || 0) + score;
+        }
+
         const name = nameMap[enrollNo] || enrollNo;
         let initials = "";
         if (typeof name === "string" && name.length > 0) {
@@ -93,28 +108,58 @@ export default function Scores() {
           photo_url: photoMap[enrollNo],
         };
       });
-      setScores(merged.sort((a, b) => b.score - a.score));
+
+      // Keep one row per student and show total score leaderboard.
+      const aggregated = Object.entries(scoreMap).map(([enrollNo, total]) => {
+        const name = nameMap[enrollNo] || enrollNo;
+        const initials = typeof name === "string" && name.length > 0
+          ? name.split(" ").map((n: string) => n[0]).join("").toUpperCase()
+          : enrollNo.slice(0, 2).toUpperCase();
+
+        return {
+          enroll_no: enrollNo,
+          score: total,
+          name,
+          initials,
+          photo_url: photoMap[enrollNo],
+        };
+      });
+
+      const fallbackMerged = merged.filter((item) => item.enroll_no);
+      const studentBackfill = studentsData
+        .filter((stu: any) => stu.enrollment_no)
+        .map((stu: any) => {
+          const name = stu.student_name || stu.enrollment_no;
+          const initials = typeof name === "string" && name.length > 0
+            ? name.split(" ").map((n: string) => n[0]).join("").toUpperCase()
+            : String(stu.enrollment_no).slice(0, 2).toUpperCase();
+
+          return {
+            enroll_no: stu.enrollment_no,
+            score: 0,
+            name,
+            initials,
+            photo_url: undefined,
+          };
+        });
+
+      const leaderboardRows = aggregated.length > 0
+        ? aggregated
+        : (fallbackMerged.length > 0 ? fallbackMerged : studentBackfill);
+      setScores(leaderboardRows.sort((a, b) => b.score - a.score));
       setLoading(false);
     };
     fetchScores();
   }, []);
 
-  // Optionally, you can keep the updateScore logic for local UI changes, but it won't persist to Supabase unless you add an update query.
-  // Optionally, you can keep the updateScore logic for local UI changes, but it won't persist to Supabase unless you add an update query.
-  const updateScore = (enroll_no: string, delta: number) => {
-    setScores((prev) =>
-      [...prev.map((s) => (s.enroll_no === enroll_no ? { ...s, score: Math.max(0, Math.min(100, s.score + delta)) } : s))]
-        .sort((a, b) => b.score - a.score)
-    );
-  };
-
   return (
     <div className="space-y-5 max-w-3xl">
       <div className="flex justify-end">
-        <Button onClick={() => setShowAddForm((v) => !v)} variant="default">
+        <Button onClick={() => setShowAddForm((v) => !v)} variant="default" disabled={!canEdit}>
           {showAddForm ? "Cancel" : "Add Score"}
         </Button>
       </div>
+      {!canEdit && <p className="text-xs text-muted-foreground">You have read-only access. Only admin can add scores.</p>}
       {showAddForm && (
         <form onSubmit={handleAddScores} className="mb-4 p-3 sm:p-4 border rounded bg-card flex flex-col gap-3 max-w-2xl">
           <div className="flex flex-col sm:flex-row gap-2 sm:items-center mb-2">
@@ -171,6 +216,10 @@ export default function Scores() {
         <div className="divide-y divide-border/50">
           {loading ? (
             <div className="p-6 text-center text-muted-foreground">Loading scores...</div>
+          ) : fetchError ? (
+            <div className="p-6 text-center text-destructive text-sm">{fetchError}</div>
+          ) : scores.length === 0 ? (
+            <div className="p-6 text-center text-muted-foreground text-sm">No leaderboard data found.</div>
           ) : (
             <AnimatePresence>
               {scores.map((student, i) => (

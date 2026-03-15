@@ -132,7 +132,7 @@ export default function Dashboard() {
       // Fetch all scores
       const { data: scoresData, error: scoresError } = await supabase
         .from("debate_scores")
-        .select("enrollment_no, total_points");
+        .select("*");
 
       if (scoresError) throw scoresError;
 
@@ -146,8 +146,8 @@ export default function Dashboard() {
       // Aggregate scores by enrollment_no
       const scoreMap: { [key: string]: number } = {};
       (scoresData || []).forEach((score: any) => {
-        const enrollNo = score.enrollment_no || "";
-        const points = score.total_points || 0;
+        const enrollNo = score.enrollment_no || score["enroll no."] || score.enroll_no || "";
+        const points = Number(score.total_points ?? score.points ?? score.score ?? 0) || 0;
         if (enrollNo) {
           scoreMap[enrollNo] = (scoreMap[enrollNo] || 0) + points;
         }
@@ -161,7 +161,6 @@ export default function Dashboard() {
           field: student.department || "N/A",
           enrollment_no: student.enrollment_no,
         }))
-        .filter((entry: LeaderboardEntry) => entry.score > 0)
         .sort((a: LeaderboardEntry, b: LeaderboardEntry) => b.score - a.score)
         .slice(0, 5);
 

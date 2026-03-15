@@ -8,6 +8,7 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { supabase } from "@/lib/supabaseClient";
 import { useToast } from "@/hooks/use-toast";
+import { hasWriteAccess } from "@/lib/auth";
 
 interface Activity {
   id: number;
@@ -26,6 +27,7 @@ export default function Activities() {
     description: "",
   });
   const { toast } = useToast();
+  const canEdit = hasWriteAccess();
 
   // Fetch activities from Supabase
   useEffect(() => {
@@ -63,6 +65,15 @@ export default function Activities() {
 
   // Add new activity
   const handleAddActivity = async () => {
+    if (!canEdit) {
+      toast({
+        variant: "destructive",
+        title: "Read-only access",
+        description: "Only admin can add activities.",
+      });
+      return;
+    }
+
     try {
       if (!formData.title || !formData.date) {
         toast({
@@ -99,6 +110,15 @@ export default function Activities() {
 
   // Delete activity
   const handleDeleteActivity = async (id: number) => {
+    if (!canEdit) {
+      toast({
+        variant: "destructive",
+        title: "Read-only access",
+        description: "Only admin can delete activities.",
+      });
+      return;
+    }
+
     try {
       const { error } = await supabase
         .from('activities')
@@ -141,7 +161,7 @@ export default function Activities() {
       <div className="flex justify-start sm:justify-end">
         <Dialog open={open} onOpenChange={setOpen}>
           <DialogTrigger asChild>
-            <Button size="sm" className="rounded-xl gap-1.5 text-sm sm:text-base">
+            <Button size="sm" className="rounded-xl gap-1.5 text-sm sm:text-base" disabled={!canEdit}>
               <Plus className="w-3.5 h-3.5" /> <span className="hidden sm:inline">Add Activity</span><span className="sm:hidden">Add</span>
             </Button>
           </DialogTrigger>
@@ -184,6 +204,7 @@ export default function Activities() {
           </DialogContent>
         </Dialog>
       </div>
+      {!canEdit && <p className="text-xs text-muted-foreground">You have read-only access. Only admin can manage activities.</p>}
 
       {/* Timeline */}
       {activities.length === 0 ? (
@@ -220,6 +241,7 @@ export default function Activities() {
                         variant="ghost" 
                         size="icon" 
                         className="h-7 w-7 rounded-lg text-destructive"
+                        disabled={!canEdit}
                         onClick={() => handleDeleteActivity(activity.id)}
                       >
                         <Trash2 className="w-3.5 h-3.5" />

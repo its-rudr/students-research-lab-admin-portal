@@ -1,11 +1,13 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { motion } from "framer-motion";
-import { Lock, Mail, Eye, EyeOff, ShieldCheck } from "lucide-react";
+import { Lock, Mail, Eye, EyeOff } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useToast } from "@/hooks/use-toast";
+import { supabase } from "@/lib/supabaseClient";
+import { isAuthenticated, saveSession } from "@/lib/auth";
 
 export default function Login() {
   const [email, setEmail] = useState("");
@@ -15,53 +17,53 @@ export default function Login() {
   const navigate = useNavigate();
   const { toast } = useToast();
 
+  useEffect(() => {
+    if (isAuthenticated()) {
+      navigate("/", { replace: true });
+    }
+  }, [navigate]);
+
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
 
     try {
-      // Test credentials for development
-      if (email === "useasadmin123" && password === "1234567890") {
-        localStorage.setItem('authToken', 'test-token-dev');
-        localStorage.setItem('userEmail', email);
-        localStorage.setItem('userData', JSON.stringify({ email, role: 'admin', name: 'Admin User' }));
+      const normalizedEmail = email.trim().toLowerCase();
+      const passwordValue = password.trim();
 
-        toast({
-          title: "Login successful",
-          description: "Welcome to the admin portal!",
-        });
+      const { data: users, error } = await supabase
+        .from("students_details")
+        .select("student_name,email,enrollment_no,member_type")
+        .eq("email", normalizedEmail)
+        .limit(1);
 
-        navigate("/");
-        return;
+      if (error) {
+        throw error;
       }
 
-      const response = await fetch('https://faculty-connect-five.vercel.app/api/auth/login', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          email,
-          password,
-        }),
+      const matchedUser = users?.[0];
+      if (!matchedUser) {
+        throw new Error("No account found for this email address.");
+      }
+
+      const enrollmentNo = String(matchedUser.enrollment_no || "").trim();
+      if (!enrollmentNo || enrollmentNo !== passwordValue) {
+        throw new Error("Invalid password. Use your enrollment number.");
+      }
+
+      const memberType = String(matchedUser.member_type || "member").toLowerCase();
+      const role = memberType === "admin" ? "admin" : "member";
+
+      saveSession({
+        email: normalizedEmail,
+        name: matchedUser.student_name || normalizedEmail,
+        enrollmentNo,
+        role,
       });
-
-      const data = await response.json();
-
-      if (!response.ok) {
-        throw new Error(data.message || 'Login failed');
-      }
-
-      // Store authentication data
-      localStorage.setItem('authToken', data.token || 'authenticated');
-      localStorage.setItem('userEmail', email);
-      if (data.user) {
-        localStorage.setItem('userData', JSON.stringify(data.user));
-      }
 
       toast({
         title: "Login successful",
-        description: "Welcome to the admin portal!",
+        description: role === "admin" ? "Admin access enabled." : "Read-only member access enabled.",
       });
 
       navigate("/");

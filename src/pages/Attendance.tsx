@@ -5,6 +5,8 @@ import { Check, X } from "lucide-react";
 import { Button } from "../components/ui/button";
 import { motion } from "framer-motion";
 import StudentAvatar from "@/components/StudentAvatar";
+import { hasWriteAccess } from "@/lib/auth";
+
 export default function Attendance() {
   const [students, setStudents] = useState<Array<{ enrollment_no: string; name: string; initials: string; hours: number; photo_url?: string }>>([]);
   const [showAddForm, setShowAddForm] = useState(false);
@@ -15,6 +17,7 @@ export default function Attendance() {
   const [loading, setLoading] = useState(true);
   const [attendanceDate, setAttendanceDate] = useState<string | null>(null);
   const [allDates, setAllDates] = useState<string[]>([]);
+  const canEdit = hasWriteAccess();
 
   // Fetch all available attendance dates on mount
   useEffect(() => {
@@ -80,6 +83,10 @@ export default function Attendance() {
 
   const handleAddAttendance = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (!canEdit) {
+      setAddError("Only admin can add attendance.");
+      return;
+    }
     setAdding(true);
     setAddError("");
     if (!addDate) {
@@ -115,10 +122,11 @@ export default function Attendance() {
   return (
     <div className="space-y-4 sm:space-y-5 max-w-7xl">
       <div className="flex justify-start sm:justify-end">
-        <Button onClick={() => setShowAddForm((v) => !v)} variant="default" className="text-sm sm:text-base">
+        <Button onClick={() => setShowAddForm((v) => !v)} variant="default" className="text-sm sm:text-base" disabled={!canEdit}>
           {showAddForm ? "Cancel" : "Add Attendance"}
         </Button>
       </div>
+      {!canEdit && <p className="text-xs text-muted-foreground">You have read-only access. Only admin can add attendance.</p>}
       {showAddForm && (
         <form onSubmit={handleAddAttendance} className="mb-4 p-3 sm:p-4 border rounded bg-card flex flex-col gap-3 max-w-2xl">
           <div className="flex flex-col sm:flex-row gap-2 sm:items-center mb-2">

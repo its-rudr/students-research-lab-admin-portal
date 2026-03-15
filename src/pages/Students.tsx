@@ -9,6 +9,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { supabase } from "@/lib/supabaseClient";
 import { useToast } from "@/hooks/use-toast";
 import StudentAvatar from "@/components/StudentAvatar";
+import { hasWriteAccess } from "@/lib/auth";
 
 // Define the student type based on your Supabase table structure
 interface Student {
@@ -46,6 +47,7 @@ export default function Students() {
     member_type: "member",
   });
   const { toast } = useToast();
+  const canEdit = hasWriteAccess();
 
   // Fetch students from Supabase
   useEffect(() => {
@@ -76,6 +78,15 @@ export default function Students() {
 
   // Add new student
   const handleAddStudent = async () => {
+    if (!canEdit) {
+      toast({
+        variant: "destructive",
+        title: "Read-only access",
+        description: "Only admin can add students.",
+      });
+      return;
+    }
+
     try {
       const { data, error } = await supabase
         .from('students_details')
@@ -142,7 +153,7 @@ export default function Students() {
           </Button>
           <Dialog open={open} onOpenChange={setOpen}>
             <DialogTrigger asChild>
-              <Button size="sm" className="rounded-xl gap-1.5">
+              <Button size="sm" className="rounded-xl gap-1.5" disabled={!canEdit}>
                 <Plus className="w-3.5 h-3.5" />
                 Add Student
               </Button>
@@ -271,6 +282,7 @@ export default function Students() {
           </Dialog>
         </div>
       </div>
+      {!canEdit && <p className="text-xs text-muted-foreground">You have read-only access. Only admin can add students.</p>}
 
       {/* Loading State */}
       {loading && (

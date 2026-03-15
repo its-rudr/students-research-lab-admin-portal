@@ -22,6 +22,7 @@ import { NavLink } from "react-router-dom";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/hooks/use-toast";
+import { clearSession, getStoredUser } from "@/lib/auth";
 
 const navItems = [
   { title: "Dashboard", path: "/", icon: LayoutDashboard },
@@ -51,6 +52,7 @@ export default function AdminLayout() {
   const location = useLocation();
   const navigate = useNavigate();
   const { toast } = useToast();
+  const user = getStoredUser();
   const currentPage = pageNames[location.pathname] || "Dashboard";
 
   // Close sidebar on mobile when route changes
@@ -62,15 +64,13 @@ export default function AdminLayout() {
 
   const handleLogout = async () => {
     try {
-      localStorage.removeItem('authToken');
-      localStorage.removeItem('userEmail');
-      localStorage.removeItem('userData');
+      clearSession();
       
       toast({
         title: "Logged out",
-        description: "Session cleared. Staying in portal mode.",
+        description: "Session cleared successfully.",
       });
-      navigate("/");
+      navigate("/login", { replace: true });
     } catch (error: any) {
       toast({
         variant: "destructive",
@@ -186,13 +186,13 @@ export default function AdminLayout() {
             <div className="hidden sm:flex items-center gap-2.5">
               <Avatar className="w-8 h-8">
                 <AvatarFallback className="bg-primary/10 text-primary text-xs font-semibold">
-                  AD
+                  {user?.name?.slice(0, 2).toUpperCase() || "US"}
                 </AvatarFallback>
               </Avatar>
               <AnimatePresence>
                 <div className="hidden sm:block">
-                  <p className="text-sm font-medium text-foreground leading-tight">Admin</p>
-                  <p className="text-[11px] text-muted-foreground leading-tight">Lab Director</p>
+                  <p className="text-sm font-medium text-foreground leading-tight">{user?.name || "User"}</p>
+                  <p className="text-[11px] text-muted-foreground leading-tight capitalize">{user?.role || "member"}</p>
                 </div>
               </AnimatePresence>
             </div>
