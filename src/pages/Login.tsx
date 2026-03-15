@@ -88,6 +88,9 @@ export default function Login() {
       >
         {/* Logo & Header */}
         <div className="text-center mb-8">
+          <div className="inline-flex items-center rounded-full border border-primary/15 bg-primary/8 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.16em] text-primary mb-4">
+            Secure Member Access
+          </div>
           <motion.div
             initial={{ scale: 0.8, opacity: 0 }}
             animate={{ scale: 1, opacity: 1 }}
@@ -98,6 +101,9 @@ export default function Login() {
           </motion.div>
           <h1 className="text-3xl font-bold text-foreground mb-2">Admin Portal</h1>
           <p className="text-muted-foreground">Students Research Lab Management</p>
+          <p className="text-sm text-muted-foreground mt-3 max-w-sm mx-auto leading-relaxed">
+            Access member records, research activities, scoreboards, and profile updates from one clean workspace.
+          </p>
         </div>
 
         {/* Login Card */}
@@ -170,8 +176,9 @@ export default function Login() {
             </Button>
           </form>
 
-          <div className="mt-6 text-center text-sm text-muted-foreground">
-            <p>Secure access only for authorized administrators</p>
+          <div className="mt-6 rounded-xl border border-border/70 bg-background/70 px-4 py-3 text-left text-sm text-muted-foreground">
+            <p className="font-semibold text-foreground mb-1">Login format</p>
+            <p>Use your email address and your enrollment number as the password.</p>
           </div>
         </motion.div>
 

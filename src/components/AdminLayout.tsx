@@ -24,6 +24,7 @@ import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/hooks/use-toast";
 import { clearSession, getStoredUser } from "@/lib/auth";
+import ScrollToTopButton from "@/components/ScrollToTopButton";
 
 const navItems = [
   { title: "Dashboard", path: "/", icon: LayoutDashboard },
@@ -57,6 +58,11 @@ export default function AdminLayout() {
   const { toast } = useToast();
   const user = getStoredUser();
   const currentPage = pageNames[location.pathname] || "Dashboard";
+  const today = new Date().toLocaleDateString("en-US", {
+    month: "short",
+    day: "numeric",
+    year: "numeric",
+  });
 
   // Close sidebar on mobile when route changes
   useEffect(() => {
@@ -84,7 +90,7 @@ export default function AdminLayout() {
   };
 
   return (
-    <div className="flex h-screen w-full overflow-hidden bg-background">
+    <div className="flex h-screen w-full overflow-hidden bg-background relative">
       {/* Mobile overlay when sidebar is open */}
       <AnimatePresence>
         {sidebarOpen && window.innerWidth < 1024 && (
@@ -106,7 +112,7 @@ export default function AdminLayout() {
         className="flex flex-col border-r border-border bg-sidebar h-full shrink-0 z-30 fixed top-0 left-0 lg:static"
       >
         {/* Logo */}
-        <div className="flex items-center gap-3 px-4 h-16 border-b border-border shrink-0">
+        <NavLink to="/" end className="flex items-center gap-3 px-4 h-16 border-b border-border shrink-0">
           <img src="/SRL Logo.svg" alt="SRL Logo" className="w-10 h-10 rounded-xl flex-shrink-0" />
           <AnimatePresence>
             {sidebarOpen && (
@@ -121,7 +127,7 @@ export default function AdminLayout() {
               </motion.div>
             )}
           </AnimatePresence>
-        </div>
+        </NavLink>
 
         {/* Nav Items */}
         <nav className="flex-1 px-3 py-4 space-y-1 overflow-y-auto">
@@ -165,9 +171,9 @@ export default function AdminLayout() {
       </motion.aside>
 
       {/* Main content area */}
-      <div className="flex flex-col flex-1 min-w-0">
+      <div className="flex flex-col flex-1 min-w-0 relative z-10">
         {/* Header */}
-        <header className="flex items-center justify-between h-14 sm:h-16 px-3 sm:px-6 border-b border-border bg-card/50 backdrop-blur-sm shrink-0 gap-2 sm:gap-3">
+        <header className="flex items-center justify-between h-14 sm:h-16 px-3 sm:px-6 border-b border-border/70 bg-card/65 backdrop-blur-md shrink-0 gap-2 sm:gap-3">
           <div className="flex items-center gap-2 sm:gap-3 flex-1 min-w-0">
             <Button
               variant="ghost"
@@ -177,10 +183,19 @@ export default function AdminLayout() {
             >
               {sidebarOpen ? <X className="w-3.5 h-3.5 sm:w-4 sm:h-4" /> : <Menu className="w-3.5 h-3.5 sm:w-4 sm:h-4" />}
             </Button>
-            <h1 className="page-title text-base sm:text-lg truncate">{currentPage}</h1>
+            <div className="min-w-0">
+              <div className="flex items-center gap-2 min-w-0">
+                <h1 className="page-title text-base sm:text-lg truncate">{currentPage}</h1>
+                <span className="hidden md:inline-flex items-center rounded-full border border-primary/15 bg-primary/8 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-[0.14em] text-primary">Live</span>
+              </div>
+              <p className="text-[11px] sm:text-xs text-muted-foreground/90 truncate font-medium tracking-[0.08em] uppercase">Student Research Lab</p>
+            </div>
           </div>
 
           <div className="flex items-center gap-1.5 sm:gap-3 shrink-0">
+            <div className="hidden md:inline-flex items-center px-3 py-1 rounded-full border border-primary/15 bg-background/80 text-primary text-xs font-semibold shadow-sm">
+              {today}
+            </div>
             <Button variant="ghost" size="icon" className="relative rounded-xl text-muted-foreground hover:text-foreground h-9 w-9 sm:h-10 sm:w-10">
               <Bell className="w-4 h-4 sm:w-[18px] sm:h-[18px]" />
               <span className="absolute top-2 right-2 w-2 h-2 bg-primary rounded-full" />
@@ -212,7 +227,7 @@ export default function AdminLayout() {
         </header>
 
         {/* Page content */}
-        <main className="flex-1 overflow-y-auto p-3 sm:p-4 md:p-6">
+        <main data-scroll-container="app-main" className="flex-1 overflow-y-auto p-3 sm:p-4 md:p-6">
           <motion.div
             key={location.pathname}
             initial={{ opacity: 0, y: 8 }}
@@ -222,6 +237,7 @@ export default function AdminLayout() {
             <Outlet />
           </motion.div>
         </main>
+        <ScrollToTopButton />
       </div>
     </div>
   );

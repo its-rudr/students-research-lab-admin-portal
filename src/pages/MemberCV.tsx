@@ -290,6 +290,26 @@ export default function MemberCV() {
     !!selectedEnrollment &&
     (!!isAdmin || (currentUser?.enrollmentNo && currentUser.enrollmentNo === selectedEnrollment));
 
+  const profileCompletion = useMemo(() => {
+    const sections = [
+      formData.research_work_summary.trim().length > 0,
+      formData.research_area.trim().length > 0,
+      formData.hackathons.some((item) => item.name.trim().length > 0),
+      formData.research_papers.some((item) => item.title.trim().length > 0),
+      formData.patents.some((item) => item.title.trim().length > 0),
+      formData.projects.some((item) => item.title.trim().length > 0),
+    ];
+
+    const completed = sections.filter(Boolean).length;
+    const total = sections.length;
+
+    return {
+      completed,
+      total,
+      percent: Math.round((completed / total) * 100),
+    };
+  }, [formData]);
+
   const handleSave = async () => {
     if (!selectedMember || !selectedEnrollment) {
       toast({
@@ -349,12 +369,30 @@ export default function MemberCV() {
   return (
     <div className="space-y-5 max-w-7xl">
       <div className="glass-card rounded-2xl p-5 sm:p-6 space-y-4">
-        <div className="flex flex-col lg:flex-row lg:items-end gap-3 lg:gap-4">
+        <div className="flex flex-col lg:flex-row lg:items-end gap-4 lg:gap-6">
           <div className="space-y-1.5 flex-1">
-            <h2 className="section-title">Add Your Information</h2>
-            <p className="text-sm text-muted-foreground">
+            <div className="inline-flex items-center rounded-full border border-primary/15 bg-primary/8 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.16em] text-primary">
+              Member Profile Workspace
+            </div>
+            <h2 className="section-title mt-2">Add Your Information</h2>
+            <p className="text-sm text-muted-foreground leading-relaxed max-w-2xl">
               Members can edit only their own profile. Admin can update all profiles.
             </p>
+          </div>
+
+          <div className="grid grid-cols-3 gap-2 sm:gap-3 lg:w-[320px]">
+            <div className="rounded-xl border border-border/70 bg-background/75 px-3 py-2">
+              <p className="text-[11px] uppercase tracking-wide text-muted-foreground">Completion</p>
+              <p className="text-lg font-semibold mt-0.5">{profileCompletion.percent}%</p>
+            </div>
+            <div className="rounded-xl border border-border/70 bg-background/75 px-3 py-2">
+              <p className="text-[11px] uppercase tracking-wide text-muted-foreground">Sections</p>
+              <p className="text-lg font-semibold mt-0.5">{profileCompletion.completed}/{profileCompletion.total}</p>
+            </div>
+            <div className="rounded-xl border border-border/70 bg-background/75 px-3 py-2">
+              <p className="text-[11px] uppercase tracking-wide text-muted-foreground">Access</p>
+              <p className="text-sm font-semibold mt-1">{canEditSelected ? "Edit" : "View"}</p>
+            </div>
           </div>
 
           <div className="w-full lg:w-96 space-y-1.5">
@@ -385,7 +423,7 @@ export default function MemberCV() {
         </div>
 
         {selectedMember && (
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-3 pt-1">
             <div className="space-y-1.5">
               <Label>Member Name</Label>
               <Input value={selectedMember.student_name} disabled className="rounded-xl" />
@@ -413,7 +451,10 @@ export default function MemberCV() {
       ) : (
         <div className="space-y-4">
           <div className="glass-card rounded-2xl p-5 sm:p-6 space-y-4">
-            <h3 className="text-base font-semibold text-foreground">Research Details</h3>
+            <div className="space-y-1">
+              <h3 className="text-base font-semibold text-foreground">Research Details</h3>
+              <p className="text-sm text-muted-foreground">Capture your core research direction and the work currently in progress.</p>
+            </div>
             <div className="space-y-1.5">
               <Label>Research Work</Label>
               <Textarea
@@ -438,7 +479,10 @@ export default function MemberCV() {
 
           <div className="glass-card rounded-2xl p-5 sm:p-6 space-y-4">
             <div className="flex items-center justify-between gap-3">
-              <h3 className="text-base font-semibold text-foreground">Hackathons</h3>
+              <div>
+                <h3 className="text-base font-semibold text-foreground">Hackathons</h3>
+                <p className="text-sm text-muted-foreground mt-1">List participation, wins, competition level, and highlights.</p>
+              </div>
               <Button
                 type="button"
                 variant="outline"
@@ -477,7 +521,10 @@ export default function MemberCV() {
 
           <div className="glass-card rounded-2xl p-5 sm:p-6 space-y-4">
             <div className="flex items-center justify-between gap-3">
-              <h3 className="text-base font-semibold text-foreground">Research Papers Published</h3>
+              <div>
+                <h3 className="text-base font-semibold text-foreground">Research Papers Published</h3>
+                <p className="text-sm text-muted-foreground mt-1">Add journals, conferences, years, and links for published work.</p>
+              </div>
               <Button
                 type="button"
                 variant="outline"
@@ -513,7 +560,10 @@ export default function MemberCV() {
 
           <div className="glass-card rounded-2xl p-5 sm:p-6 space-y-4">
             <div className="flex items-center justify-between gap-3">
-              <h3 className="text-base font-semibold text-foreground">Patents Published</h3>
+              <div>
+                <h3 className="text-base font-semibold text-foreground">Patents Published</h3>
+                <p className="text-sm text-muted-foreground mt-1">Store patent titles, numbers, status, and filing year.</p>
+              </div>
               <Button
                 type="button"
                 variant="outline"
@@ -549,7 +599,10 @@ export default function MemberCV() {
 
           <div className="glass-card rounded-2xl p-5 sm:p-6 space-y-4">
             <div className="flex items-center justify-between gap-3">
-              <h3 className="text-base font-semibold text-foreground">Projects Done</h3>
+              <div>
+                <h3 className="text-base font-semibold text-foreground">Projects Done</h3>
+                <p className="text-sm text-muted-foreground mt-1">Document project scope, technology stack, year, and supporting links.</p>
+              </div>
               <Button
                 type="button"
                 variant="outline"
@@ -592,7 +645,8 @@ export default function MemberCV() {
             </div>
           </div>
 
-          <div className="flex justify-end">
+          <div className="sticky bottom-3 z-20 flex justify-end">
+            <div className="rounded-2xl border border-border/70 bg-background/90 p-2 shadow-[var(--shadow-elevated)] backdrop-blur-md">
             <Button className="rounded-xl min-w-36" onClick={handleSave} disabled={saving || !canEditSelected}>
               {saving ? (
                 <span className="inline-flex items-center gap-2">
@@ -602,6 +656,7 @@ export default function MemberCV() {
                 "Save Profile"
               )}
             </Button>
+            </div>
           </div>
         </div>
       )}

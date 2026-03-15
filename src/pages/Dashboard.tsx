@@ -30,6 +30,11 @@ export default function Dashboard() {
   const [attendanceSubtitle, setAttendanceSubtitle] = useState<string>("No attendance data");
   const [attendanceLoading, setAttendanceLoading] = useState(true);
   const { toast } = useToast();
+  const today = new Date().toLocaleDateString("en-US", {
+    weekday: "long",
+    month: "short",
+    day: "numeric",
+  });
 
   useEffect(() => {
     fetchLeaderboard();
@@ -209,6 +214,31 @@ export default function Dashboard() {
 
   return (
     <div className="space-y-4 sm:space-y-6 max-w-7xl">
+      <motion.div
+        initial={{ opacity: 0, y: 12 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.4 }}
+        className="glass-card rounded-2xl p-5 sm:p-6"
+      >
+        <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
+          <div>
+            <p className="text-xs uppercase tracking-[0.18em] text-primary/80 font-semibold">Overview</p>
+            <h2 className="text-xl sm:text-2xl font-semibold tracking-tight text-foreground mt-1">Research Lab Performance Snapshot</h2>
+            <p className="text-sm text-muted-foreground mt-1">{today} · Real-time visibility for members, activities, and outcomes</p>
+          </div>
+          <div className="grid grid-cols-2 gap-2 sm:gap-3 lg:w-[360px]">
+            <div className="rounded-xl border border-border/70 bg-background/70 px-3 py-2">
+              <p className="text-[11px] uppercase tracking-wide text-muted-foreground">Active Members</p>
+              <p className="text-lg font-semibold mt-0.5">{studentsCountLoading ? "..." : totalStudents}</p>
+            </div>
+            <div className="rounded-xl border border-border/70 bg-background/70 px-3 py-2">
+              <p className="text-[11px] uppercase tracking-wide text-muted-foreground">Attendance</p>
+              <p className="text-lg font-semibold mt-0.5">{attendanceLoading ? "..." : `${attendancePercent}%`}</p>
+            </div>
+          </div>
+        </div>
+      </motion.div>
+
       {/* Stats Grid */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-4">
         <StatCard

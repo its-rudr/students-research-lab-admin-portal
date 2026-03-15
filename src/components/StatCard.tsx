@@ -16,10 +16,11 @@ export default function StatCard({ title, value, subtitle, icon: Icon, delay = 0
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.4, delay, ease: "easeOut" }}
       whileHover={{ y: -2 }}
-      className="glass-card rounded-2xl p-5"
+      className="glass-card rounded-2xl p-5 relative overflow-hidden"
     >
+      <div className="absolute top-0 left-0 right-0 h-px bg-gradient-to-r from-transparent via-primary/40 to-transparent" />
       <div className="flex items-start justify-between mb-3">
-        <div className="flex items-center justify-center w-10 h-10 rounded-xl bg-primary/8">
+        <div className="flex items-center justify-center w-10 h-10 rounded-xl bg-primary/10 ring-1 ring-primary/15">
           <Icon className="w-5 h-5 text-primary" />
         </div>
       </div>
