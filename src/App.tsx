@@ -14,6 +14,7 @@ import Research from "@/pages/Research";
 import Attendance from "@/pages/Attendance";
 import Scores from "@/pages/Scores";
 import Activities from "@/pages/Activities";
+import MemberCV from "./pages/MemberCV";
 import Login from "@/pages/Login";
 // import GoogleSheetData from "@/pages/GoogleSheetData"; // Commented until API key is added
 // import SheetSync from "@/pages/SheetSync"; // Commented until API key is added
@@ -53,6 +54,7 @@ const App = () => {
                     <Route path="/attendance" element={<Attendance />} />
                     <Route path="/scores" element={<Scores />} />
                     <Route path="/activities" element={<Activities />} />
+                    <Route path="/member-cv" element={<MemberCV />} />
                     {/* <Route path="/google-sheets" element={<GoogleSheetData />} /> */}
                     {/* <Route path="/sheet-sync" element={<SheetSync />} /> */}
                   </Route>
