@@ -1,0 +1,257 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap');
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    --background: 180 40% 96%;
+    --foreground: 180 40% 10%;
+
+    --card: 0 0% 100%;
+    --card-foreground: 180 40% 10%;
+
+    --popover: 0 0% 100%;
+    --popover-foreground: 180 40% 10%;
+
+    --primary: 180 70% 35%;
+    --primary-foreground: 0 0% 100%;
+
+    --secondary: 180 50% 92%;
+    --secondary-foreground: 180 80% 20%;
+
+    --muted: 180 30% 90%;
+    --muted-foreground: 180 20% 45%;
+
+    --accent: 180 75% 40%;
+    --accent-foreground: 0 0% 100%;
+
+    --destructive: 0 72% 51%;
+    --destructive-foreground: 0 0% 100%;
+
+    --border: 180 30% 85%;
+    --input: 180 30% 88%;
+    --ring: 180 70% 35%;
+
+    --radius: 0.75rem;
+
+    --sidebar-background: 180 50% 94%;
+    --sidebar-foreground: 180 40% 25%;
+    --sidebar-primary: 180 70% 35%;
+    --sidebar-primary-foreground: 0 0% 100%;
+    --sidebar-accent: 180 75% 40%;
+    --sidebar-accent-foreground: 0 0% 100%;
+    --sidebar-border: 180 30% 85%;
+    --sidebar-ring: 180 70% 35%;
+    --sidebar-hover: 180 40% 88%;
+
+    --success: 152 60% 45%;
+    --success-foreground: 0 0% 100%;
+    --warning: 48 95% 53%;
+    --warning-foreground: 48 95% 10%;
+
+    --glass: 0 0% 100% / 0.7;
+    --glass-border: 180 30% 85% / 0.5;
+
+    --shadow-card: 0 1px 3px 0 hsl(180 70% 35% / 0.08), 0 1px 2px -1px hsl(180 70% 35% / 0.06);
+    --shadow-card-hover: 0 4px 16px -2px hsl(180 70% 35% / 0.15), 0 2px 4px -2px hsl(180 70% 35% / 0.08);
+    --shadow-elevated: 0 8px 30px -4px hsl(180 70% 35% / 0.2);
+  }
+
+  .dark {
+    --background: 180 40% 8%;
+    --foreground: 180 20% 95%;
+
+    --card: 180 35% 11%;
+    --card-foreground: 180 20% 95%;
+
+    --popover: 180 35% 11%;
+    --popover-foreground: 180 20% 95%;
+
+    --primary: 180 70% 45%;
+    --primary-foreground: 0 0% 100%;
+
+    --secondary: 180 30% 15%;
+    --secondary-foreground: 180 20% 95%;
+
+    --muted: 180 30% 15%;
+    --muted-foreground: 180 20% 60%;
+
+    --accent: 180 75% 50%;
+    --accent-foreground: 0 0% 100%;
+
+    --destructive: 0 62% 45%;
+    --destructive-foreground: 0 0% 100%;
+
+    --border: 180 30% 18%;
+    --input: 180 30% 18%;
+    --ring: 180 70% 45%;
+
+    --sidebar-background: 180 40% 9%;
+    --sidebar-foreground: 180 20% 65%;
+    --sidebar-primary: 180 70% 45%;
+    --sidebar-primary-foreground: 0 0% 100%;
+    --sidebar-accent: 180 75% 50%;
+    --sidebar-accent-foreground: 0 0% 100%;
+    --sidebar-border: 180 30% 18%;
+    --sidebar-ring: 180 70% 45%;
+    --sidebar-hover: 180 35% 13%;
+
+    --success: 152 60% 45%;
+    --success-foreground: 0 0% 100%;
+    --warning: 48 95% 55%;
+    --warning-foreground: 48 95% 10%;
+
+    --glass: 180 35% 11% / 0.7;
+    --glass-border: 180 30% 18% / 0.5;
+
+    --shadow-card: 0 1px 3px 0 hsl(0 0% 0% / 0.3);
+    --shadow-card-hover: 0 4px 16px -2px hsl(0 0% 0% / 0.4);
+    --shadow-elevated: 0 8px 30px -4px hsl(0 0% 0% / 0.5);
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+
+  body {
+    @apply bg-background text-foreground font-sans antialiased;
+  }
+
+  h1, h2, h3, h4, h5, h6 {
+    @apply font-semibold tracking-tight;
+  }
+}
+
+@layer components {
+  .glass-card {
+    @apply bg-card/70 backdrop-blur-xl border border-border/50 shadow-[var(--shadow-card)] transition-all duration-300;
+    user-select: none;
+  }
+
+  .glass-card:hover {
+    @apply shadow-[var(--shadow-card-hover)];
+  }
+
+  .stat-number {
+    @apply text-3xl font-bold tracking-tight text-foreground;
+    user-select: none;
+  }
+
+  .stat-label {
+    @apply text-sm font-medium text-muted-foreground;
+    user-select: none;
+  }
+
+  .badge-published {
+    @apply bg-success/10 text-success border border-success/20;
+    user-select: none;
+  }
+
+  .badge-pending {
+    @apply bg-warning/10 text-warning border border-warning/20;
+    user-select: none;
+  }
+
+  .sidebar-item {
+    @apply flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium text-sidebar-foreground transition-all duration-200;
+    user-select: none;
+    cursor: pointer;
+  }
+
+  .sidebar-item:hover {
+    @apply bg-sidebar-hover text-foreground;
+  }
+
+  .sidebar-item.active {
+    @apply bg-primary/10 text-primary;
+  }
+
+  .page-title {
+    @apply text-lg sm:text-2xl font-semibold tracking-tight text-foreground;
+    user-select: none;
+  }
+
+  .section-title {
+    @apply text-base sm:text-lg font-semibold tracking-tight text-foreground;
+    user-select: none;
+  }
+
+  .mono {
+    @apply font-mono;
+  }
+
+  /* Prevent text selection on UI elements */
+  button,
+  [role="button"],
+  .glass-card,
+  nav,
+  aside {
+    user-select: none;
+    -webkit-user-select: none;
+    -moz-user-select: none;
+    -ms-user-select: none;
+  }
+
+  /* Allow text selection in content areas */
+  input,
+  textarea,
+  [contenteditable="true"],
+  p,
+  .content {
+    user-select: text;
+    -webkit-user-select: text;
+    -moz-user-select: text;
+    -ms-user-select: text;
+  }
+
+  /* Responsive table styles */
+  table {
+    @apply w-full text-sm;
+  }
+
+  th {
+    @apply px-2 sm:px-3 py-1.5 text-left font-medium;
+  }
+
+  td {
+    @apply px-2 sm:px-3 py-1.5;
+  }
+
+  /* Ensure editable controls always show text cursor */
+  input[type="text"],
+  input[type="email"],
+  input[type="date"],
+  input[type="number"],
+  input[type="password"],
+  textarea,
+  select,
+  [contenteditable] {
+    cursor: text;
+  }
+
+  /* Responsive input styles */
+  input[type="text"],
+  input[type="email"],
+  input[type="date"],
+  input[type="number"],
+  textarea,
+  select {
+    @apply w-full text-sm px-2 sm:px-3 py-1.5 sm:py-2;
+  }
+
+  /* Mobile responsive dialog */
+  @media (max-width: 640px) {
+    .dialog-content {
+      @apply w-full max-w-[90vw];
+    }
+
+    .glass-card {
+      @apply rounded-lg sm:rounded-2xl;
+    }
+  }
+}
+
