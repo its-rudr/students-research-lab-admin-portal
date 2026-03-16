@@ -179,7 +179,9 @@ export default function MemberCV() {
           throw error;
         }
 
-        const fetchedMembers = (data || []).filter((row: any) => row.enrollment_no);
+        const fetchedMembers = (data || []).filter(
+          (row: any) => row.enrollment_no && String(row.member_type || "member").toLowerCase() !== "admin"
+        );
         setMembers(fetchedMembers);
 
         if (!currentUser) {

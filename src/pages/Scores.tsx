@@ -69,17 +69,25 @@ export default function Scores() {
         return;
       }
       // Fetch student details
-      const { data: studentsData, error: studentsError } = await supabase.from("students_details").select("enrollment_no,student_name");
+      const { data: studentsData, error: studentsError } = await supabase.from("students_details").select("enrollment_no,student_name,member_type");
       if (studentsError || !studentsData) {
         setFetchError(studentsError?.message || "Failed to read student records from database.");
         setScores([]);
         setLoading(false);
         return;
       }
+      const visibleStudents = studentsData.filter(
+        (stu: any) => String(stu.member_type || "member").toLowerCase() !== "admin"
+      );
+      const visibleEnrollmentSet = new Set(
+        visibleStudents
+          .map((stu: any) => stu.enrollment_no)
+          .filter(Boolean)
+      );
       // Map enrollment_no to name
       const nameMap: { [enroll_no: string]: string } = {};
       const photoMap: { [enroll_no: string]: string | undefined } = {};
-      studentsData.forEach((stu: any) => {
+      visibleStudents.forEach((stu: any) => {
         nameMap[stu.enrollment_no] = stu.student_name;
         photoMap[stu.enrollment_no] = undefined;
       });
@@ -110,7 +118,9 @@ export default function Scores() {
       });
 
       // Keep one row per student and show total score leaderboard.
-      const aggregated = Object.entries(scoreMap).map(([enrollNo, total]) => {
+      const aggregated = Object.entries(scoreMap)
+        .filter(([enrollNo]) => visibleEnrollmentSet.has(enrollNo))
+        .map(([enrollNo, total]) => {
         const name = nameMap[enrollNo] || enrollNo;
         const initials = typeof name === "string" && name.length > 0
           ? name.split(" ").map((n: string) => n[0]).join("").toUpperCase()
@@ -125,8 +135,8 @@ export default function Scores() {
         };
       });
 
-      const fallbackMerged = merged.filter((item) => item.enroll_no);
-      const studentBackfill = studentsData
+      const fallbackMerged = merged.filter((item) => item.enroll_no && visibleEnrollmentSet.has(item.enroll_no));
+      const studentBackfill = visibleStudents
         .filter((stu: any) => stu.enrollment_no)
         .map((stu: any) => {
           const name = stu.student_name || stu.enrollment_no;

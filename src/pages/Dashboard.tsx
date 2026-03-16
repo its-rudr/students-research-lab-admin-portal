@@ -1,15 +1,32 @@
 import { useState, useEffect } from "react";
 import { motion } from "framer-motion";
-import { Users, CalendarCheck, BookOpen, Trophy, TrendingUp, Clock, Loader2, Calendar } from "lucide-react";
+import { Users, CalendarCheck, BookOpen, Trophy, TrendingUp, Clock, Loader2, Calendar, BarChart2, PieChart as PieIcon } from "lucide-react";
 import StatCard from "@/components/StatCard";
 import { supabase } from "@/lib/supabaseClient";
 import { useToast } from "@/hooks/use-toast";
+import {
+  BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend,
+  ResponsiveContainer, PieChart, Pie, Cell, Sector,
+} from "recharts";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 
 interface LeaderboardEntry {
   name: string;
   score: number;
   field: string;
   enrollment_no: string;
+}
+
+interface TopStudentChartEntry {
+  name: string;
+  score: number;
+  hours: number;
+}
+
+interface GenderChartEntry {
+  name: string;
+  value: number;
+  color: string;
 }
 
 interface Activity {
@@ -29,6 +46,12 @@ export default function Dashboard() {
   const [attendancePercent, setAttendancePercent] = useState<number>(0);
   const [attendanceSubtitle, setAttendanceSubtitle] = useState<string>("No attendance data");
   const [attendanceLoading, setAttendanceLoading] = useState(true);
+  const [topStudentsChart, setTopStudentsChart] = useState<TopStudentChartEntry[]>([]);
+  const [topStudentsLoading, setTopStudentsLoading] = useState(true);
+  const [genderRawData, setGenderRawData] = useState<{ gender: string; semester: string }[]>([]);
+  const [genderSemesters, setGenderSemesters] = useState<string[]>([]);
+  const [selectedSemester, setSelectedSemester] = useState<string>("all");
+  const [genderLoading, setGenderLoading] = useState(true);
   const { toast } = useToast();
   const today = new Date().toLocaleDateString("en-US", {
     weekday: "long",
@@ -40,6 +63,8 @@ export default function Dashboard() {
     fetchLeaderboard();
     fetchActivities();
     fetchTotalStudents();
+    fetchTopStudentsChart();
+    fetchGenderData();
   }, []);
 
   useEffect(() => {
@@ -51,12 +76,15 @@ export default function Dashboard() {
   const fetchTotalStudents = async () => {
     try {
       setStudentsCountLoading(true);
-      const { count, error } = await supabase
+      const { data, error } = await supabase
         .from("students_details")
-        .select("id", { count: "exact", head: true });
+        .select("member_type");
 
       if (error) throw error;
-      setTotalStudents(count || 0);
+      const visibleStudents = (data || []).filter(
+        (row: any) => String(row.member_type || "member").toLowerCase() !== "admin"
+      );
+      setTotalStudents(visibleStudents.length);
     } catch (error: any) {
       console.error("Error fetching total students:", error);
       setTotalStudents(0);
@@ -68,6 +96,19 @@ export default function Dashboard() {
   const fetchAttendanceSummary = async () => {
     try {
       setAttendanceLoading(true);
+
+      const { data: studentsData, error: studentsError } = await supabase
+        .from("students_details")
+        .select("enrollment_no,member_type");
+
+      if (studentsError) throw studentsError;
+
+      const visibleEnrollmentSet = new Set(
+        (studentsData || [])
+          .filter((row: any) => String(row.member_type || "member").toLowerCase() !== "admin")
+          .map((row: any) => row.enrollment_no)
+          .filter(Boolean)
+      );
 
       const today = new Date().toISOString().split("T")[0];
       let targetDate = today;
@@ -108,7 +149,7 @@ export default function Dashboard() {
 
       const presentSet = new Set(
         (attendanceRows || [])
-          .filter((row: any) => Number(row.hours || 0) > 0)
+          .filter((row: any) => visibleEnrollmentSet.has(row.enrollment_no) && Number(row.hours || 0) > 0)
           .map((row: any) => row.enrollment_no)
       );
 
@@ -144,9 +185,12 @@ export default function Dashboard() {
       // Fetch student details
       const { data: studentsData, error: studentsError } = await supabase
         .from("students_details")
-        .select("enrollment_no, student_name, department");
+        .select("enrollment_no, student_name, department, member_type");
 
       if (studentsError) throw studentsError;
+      const visibleStudents = (studentsData || []).filter(
+        (student: any) => String(student.member_type || "member").toLowerCase() !== "admin"
+      );
 
       // Aggregate scores by enrollment_no
       const scoreMap: { [key: string]: number } = {};
@@ -159,7 +203,7 @@ export default function Dashboard() {
       });
 
       // Create leaderboard entries
-      const leaderboardData: LeaderboardEntry[] = (studentsData || [])
+      const leaderboardData: LeaderboardEntry[] = visibleStudents
         .map((student: any) => ({
           name: student.student_name || "Unknown",
           score: Math.round(scoreMap[student.enrollment_no] || 0),
@@ -180,6 +224,81 @@ export default function Dashboard() {
       setLeaderboard([]);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const fetchTopStudentsChart = async () => {
+    try {
+      setTopStudentsLoading(true);
+      const [{ data: scoresData, error: scoresError }, { data: attendanceData, error: attError }, { data: studentsData, error: stuError }] = await Promise.all([
+        supabase.from("debate_scores").select("enrollment_no,total_points"),
+        supabase.from("attendance").select("enrollment_no,hours"),
+        supabase.from("students_details").select("enrollment_no,student_name,member_type"),
+      ]);
+
+      if (scoresError || attError || stuError) return;
+
+      const visibleStudents = (studentsData || []).filter(
+        (student: any) => String(student.member_type || "member").toLowerCase() !== "admin"
+      );
+      const visibleEnrollmentSet = new Set(
+        visibleStudents.map((student: any) => student.enrollment_no).filter(Boolean)
+      );
+      const nameMap: Record<string, string> = {};
+      visibleStudents.forEach((student: any) => {
+        nameMap[student.enrollment_no] = student.student_name;
+      });
+
+      const scoreMap: Record<string, number> = {};
+      (scoresData || []).forEach((row: any) => {
+        const e = row.enrollment_no || "";
+        if (e) scoreMap[e] = (scoreMap[e] || 0) + (Number(row.total_points) || 0);
+      });
+
+      const hoursMap: Record<string, number> = {};
+      (attendanceData || []).forEach((row: any) => {
+        const e = row.enrollment_no || "";
+        if (e) hoursMap[e] = (hoursMap[e] || 0) + (Number(row.hours) || 0);
+      });
+
+      const top5 = Object.entries(scoreMap)
+        .filter(([enroll]) => visibleEnrollmentSet.has(enroll))
+        .sort(([, a], [, b]) => b - a)
+        .slice(0, 5)
+        .map(([enroll, score]) => {
+          const full = nameMap[enroll] || enroll;
+          const shortName = full.split(" ").slice(0, 2).join(" ");
+          return { name: shortName, score: Math.round(score), hours: Math.round(hoursMap[enroll] || 0) };
+        });
+
+      setTopStudentsChart(top5);
+    } catch (e) {
+      console.error("Chart data error:", e);
+    } finally {
+      setTopStudentsLoading(false);
+    }
+  };
+
+  const fetchGenderData = async () => {
+    try {
+      setGenderLoading(true);
+      const { data, error } = await supabase
+        .from("students_details")
+        .select("gender,semester,member_type");
+      if (error) return;
+      const rows = (data || [])
+        .filter((row: any) => String(row.member_type || "member").toLowerCase() !== "admin")
+        .map((r: any) => ({
+          gender: (r.gender || "unknown").toLowerCase(),
+          semester: r.semester ? String(r.semester).trim() : "Unknown",
+        }));
+      setGenderRawData(rows);
+      const sems = Array.from(new Set(rows.map((r) => r.semester))).sort();
+      setGenderSemesters(sems);
+    } catch (e) {
+      console.error("Gender data error:", e);
+    } finally {
+      setGenderLoading(false);
     }
   };
 
@@ -210,6 +329,33 @@ export default function Dashboard() {
   const formatDate = (dateString: string) => {
     const date = new Date(dateString);
     return date.toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' });
+  };
+
+  const genderPieData = (() => {
+    const filtered = selectedSemester === "all"
+      ? genderRawData
+      : genderRawData.filter((r) => r.semester === selectedSemester);
+    const males = filtered.filter((r) => r.gender === "male" || r.gender === "m").length;
+    const females = filtered.filter((r) => r.gender === "female" || r.gender === "f").length;
+    const others = filtered.length - males - females;
+    const result: GenderChartEntry[] = [];
+    if (males > 0) result.push({ name: "Male", value: males, color: "#6366f1" });
+    if (females > 0) result.push({ name: "Female", value: females, color: "#ec4899" });
+    if (others > 0) result.push({ name: "Other", value: others, color: "#94a3b8" });
+    return result;
+  })();
+
+  const RADIAN = Math.PI / 180;
+  const renderCustomLabel = ({ cx, cy, midAngle, innerRadius, outerRadius, percent }: any) => {
+    if (percent < 0.05) return null;
+    const radius = innerRadius + (outerRadius - innerRadius) * 0.5;
+    const x = cx + radius * Math.cos(-midAngle * RADIAN);
+    const y = cy + radius * Math.sin(-midAngle * RADIAN);
+    return (
+      <text x={x} y={y} fill="white" textAnchor="middle" dominantBaseline="central" fontSize={12} fontWeight={600}>
+        {`${(percent * 100).toFixed(0)}%`}
+      </text>
+    );
   };
 
   return (
@@ -352,6 +498,130 @@ export default function Dashboard() {
                   </div>
                 </motion.div>
               ))}
+            </div>
+          )}
+        </motion.div>
+      </div>
+
+      {/* Charts Row */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-3 sm:gap-4">
+        {/* Bar Chart - Top 5 Students */}
+        <motion.div
+          initial={{ opacity: 0, y: 12 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.35, duration: 0.4 }}
+          className="glass-card rounded-2xl p-5"
+        >
+          <div className="flex items-center justify-between mb-4">
+            <h2 className="section-title flex items-center gap-2">
+              <BarChart2 className="w-4 h-4 text-primary" />
+              Top 5 Students
+            </h2>
+            <span className="text-xs font-medium text-muted-foreground">Score &amp; Hours</span>
+          </div>
+          {topStudentsLoading ? (
+            <div className="flex items-center justify-center py-10">
+              <Loader2 className="w-6 h-6 animate-spin text-primary" />
+            </div>
+          ) : topStudentsChart.length === 0 ? (
+            <div className="text-center py-10 text-muted-foreground text-sm">No data available</div>
+          ) : (
+            <ResponsiveContainer width="100%" height={240}>
+              <BarChart data={topStudentsChart} margin={{ top: 4, right: 8, left: -10, bottom: 0 }}>
+                <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" opacity={0.4} />
+                <XAxis
+                  dataKey="name"
+                  tick={{ fontSize: 10, fill: "var(--muted-foreground)" } as any}
+                  tickLine={false}
+                  axisLine={false}
+                  interval={0}
+                />
+                <YAxis tick={{ fontSize: 11, fill: "var(--muted-foreground)" } as any} tickLine={false} axisLine={false} />
+                <Tooltip
+                  contentStyle={{
+                    background: "var(--card)",
+                    border: "1px solid var(--border)",
+                    borderRadius: "10px",
+                    fontSize: 12,
+                  }}
+                />
+                <Legend wrapperStyle={{ fontSize: 12 }} />
+                <Bar dataKey="score" name="Score" fill="#6366f1" radius={[6, 6, 0, 0]} maxBarSize={32} />
+                <Bar dataKey="hours" name="Hours" fill="#10b981" radius={[6, 6, 0, 0]} maxBarSize={32} />
+              </BarChart>
+            </ResponsiveContainer>
+          )}
+        </motion.div>
+
+        {/* Pie Chart - Gender Ratio by Semester */}
+        <motion.div
+          initial={{ opacity: 0, y: 12 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.4, duration: 0.4 }}
+          className="glass-card rounded-2xl p-5"
+        >
+          <div className="flex items-center justify-between mb-4">
+            <h2 className="section-title flex items-center gap-2">
+              <PieIcon className="w-4 h-4 text-primary" />
+              Gender Ratio
+            </h2>
+            <Select value={selectedSemester} onValueChange={setSelectedSemester}>
+              <SelectTrigger className="w-32 h-7 text-xs">
+                <SelectValue placeholder="Semester" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All Semesters</SelectItem>
+                {genderSemesters.map((sem) => (
+                  <SelectItem key={sem} value={sem}>
+                    Sem {sem}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+          {genderLoading ? (
+            <div className="flex items-center justify-center py-10">
+              <Loader2 className="w-6 h-6 animate-spin text-primary" />
+            </div>
+          ) : genderPieData.length === 0 ? (
+            <div className="text-center py-10 text-muted-foreground text-sm">No gender data available</div>
+          ) : (
+            <div className="flex flex-col items-center gap-4">
+              <ResponsiveContainer width="100%" height={200}>
+                <PieChart>
+                  <Pie
+                    data={genderPieData}
+                    cx="50%"
+                    cy="50%"
+                    outerRadius={80}
+                    dataKey="value"
+                    labelLine={false}
+                    label={renderCustomLabel}
+                  >
+                    {genderPieData.map((entry, index) => (
+                      <Cell key={`cell-${index}`} fill={entry.color} />
+                    ))}
+                  </Pie>
+                  <Tooltip
+                    contentStyle={{
+                      background: "var(--card)",
+                      border: "1px solid var(--border)",
+                      borderRadius: "10px",
+                      fontSize: 12,
+                    }}
+                    formatter={(value: number, name: string) => [value, name]}
+                  />
+                </PieChart>
+              </ResponsiveContainer>
+              <div className="flex gap-4">
+                {genderPieData.map((entry) => (
+                  <div key={entry.name} className="flex items-center gap-1.5">
+                    <span className="w-3 h-3 rounded-full" style={{ background: entry.color }} />
+                    <span className="text-xs text-muted-foreground">{entry.name}</span>
+                    <span className="text-xs font-semibold">{entry.value}</span>
+                  </div>
+                ))}
+              </div>
             </div>
           )}
         </motion.div>

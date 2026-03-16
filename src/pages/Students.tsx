@@ -62,7 +62,10 @@ export default function Students() {
         .select('*');
 
       if (error) throw error;
-      setStudents(data || []);
+      const visibleStudents = (data || []).filter(
+        (row: any) => String(row.member_type || "member").toLowerCase() !== "admin"
+      );
+      setStudents(visibleStudents);
     } catch (error: any) {
       console.error('Supabase error:', error);
       toast({

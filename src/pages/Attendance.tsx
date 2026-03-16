@@ -47,14 +47,16 @@ export default function Attendance() {
         .eq("date", attendanceDate);
       const { data: stuData, error: stuError } = await supabase
         .from("students_details")
-        .select("enrollment_no,student_name");
+        .select("enrollment_no,student_name,member_type");
       if (attError || stuError) {
         setStudents([]);
         setLoading(false);
         return;
       }
       const stuMap: { [enrollment_no: string]: { name: string; initials: string; photo_url?: string } } = {};
-      stuData.forEach((s: any) => {
+      stuData
+        .filter((student: any) => String(student.member_type || "member").toLowerCase() !== "admin")
+        .forEach((s: any) => {
         stuMap[s.enrollment_no] = {
           name: s.student_name,
           initials: s.student_name
@@ -62,10 +64,12 @@ export default function Attendance() {
             .map((n: string) => n[0])
             .join("")
             .toUpperCase(),
-          photo_url: s.photo_url,
+          photo_url: undefined,
         };
       });
-      const studentsList = attData.map((row: any) => {
+      const studentsList = attData
+        .filter((row: any) => stuMap[row.enrollment_no])
+        .map((row: any) => {
         const details = stuMap[row.enrollment_no];
         return {
           enrollment_no: row.enrollment_no,

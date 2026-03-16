@@ -31,14 +31,33 @@ export default function Login() {
       const normalizedEmail = email.trim().toLowerCase();
       const passwordValue = password.trim();
 
-      const { data: users, error } = await supabase
+      let users: any[] | null = null;
+      const primaryResult = await supabase
         .from("students_details")
-        .select("student_name,email,enrollment_no,member_type")
+        .select("student_name,email,enrollment_no,member_type,login_password")
         .eq("email", normalizedEmail)
         .limit(1);
 
-      if (error) {
-        throw error;
+      if (primaryResult.error) {
+        const missingPasswordColumn = primaryResult.error.message?.toLowerCase().includes("login_password");
+
+        if (!missingPasswordColumn) {
+          throw primaryResult.error;
+        }
+
+        const fallbackResult = await supabase
+          .from("students_details")
+          .select("student_name,email,enrollment_no,member_type")
+          .eq("email", normalizedEmail)
+          .limit(1);
+
+        if (fallbackResult.error) {
+          throw fallbackResult.error;
+        }
+
+        users = fallbackResult.data;
+      } else {
+        users = primaryResult.data;
       }
 
       const matchedUser = users?.[0];
@@ -47,8 +66,10 @@ export default function Login() {
       }
 
       const enrollmentNo = String(matchedUser.enrollment_no || "").trim();
-      if (!enrollmentNo || enrollmentNo !== passwordValue) {
-        throw new Error("Invalid password. Use your enrollment number.");
+      const assignedPassword = String(matchedUser.login_password || enrollmentNo).trim();
+
+      if (!assignedPassword || assignedPassword !== passwordValue) {
+        throw new Error(matchedUser.login_password ? "Invalid password." : "Invalid password. Use your enrollment number.");
       }
 
       const memberType = String(matchedUser.member_type || "member").toLowerCase();
@@ -178,7 +199,7 @@ export default function Login() {
 
           <div className="mt-6 rounded-xl border border-border/70 bg-background/70 px-4 py-3 text-left text-sm text-muted-foreground">
             <p className="font-semibold text-foreground mb-1">Login format</p>
-            <p>Use your email address and your enrollment number as the password.</p>
+            <p>Use your email address and your assigned password. Member accounts still use enrollment number unless a custom password is stored.</p>
           </div>
         </motion.div>
 
