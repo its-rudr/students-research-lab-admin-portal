@@ -197,10 +197,6 @@ export default function Login() {
             </Button>
           </form>
 
-          <div className="mt-6 rounded-xl border border-border/70 bg-background/70 px-4 py-3 text-left text-sm text-muted-foreground">
-            <p className="font-semibold text-foreground mb-1">Login format</p>
-            <p>Use your email address and your assigned password. Member accounts still use enrollment number unless a custom password is stored.</p>
-          </div>
         </motion.div>
 
         {/* Footer */}

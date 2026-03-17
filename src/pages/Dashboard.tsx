@@ -1,12 +1,12 @@
 import { useState, useEffect } from "react";
 import { motion } from "framer-motion";
-import { Users, CalendarCheck, BookOpen, Trophy, TrendingUp, Clock, Loader2, Calendar, BarChart2, PieChart as PieIcon } from "lucide-react";
+import { Users, CalendarCheck, BookOpen, Trophy, TrendingUp, Loader2, Calendar, BarChart2, PieChart as PieIcon, Activity, Clock } from "lucide-react";
 import StatCard from "@/components/StatCard";
 import { supabase } from "@/lib/supabaseClient";
 import { useToast } from "@/hooks/use-toast";
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend,
-  ResponsiveContainer, PieChart, Pie, Cell, Sector,
+  ResponsiveContainer, PieChart, Pie, Cell, LineChart, Line,
 } from "recharts";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 
@@ -17,10 +17,26 @@ interface LeaderboardEntry {
   enrollment_no: string;
 }
 
-interface TopStudentChartEntry {
+interface TopScoreChartEntry {
   name: string;
   score: number;
+}
+
+interface TopAttendanceChartEntry {
+  name: string;
   hours: number;
+}
+
+interface MonthlyTrendEntry {
+  month: string;
+  score: number;
+  hours: number;
+}
+
+interface ScoreBandEntry {
+  name: string;
+  value: number;
+  color: string;
 }
 
 interface GenderChartEntry {
@@ -46,8 +62,14 @@ export default function Dashboard() {
   const [attendancePercent, setAttendancePercent] = useState<number>(0);
   const [attendanceSubtitle, setAttendanceSubtitle] = useState<string>("No attendance data");
   const [attendanceLoading, setAttendanceLoading] = useState(true);
-  const [topStudentsChart, setTopStudentsChart] = useState<TopStudentChartEntry[]>([]);
-  const [topStudentsLoading, setTopStudentsLoading] = useState(true);
+  const [topScoreChart, setTopScoreChart] = useState<TopScoreChartEntry[]>([]);
+  const [topAttendanceChart, setTopAttendanceChart] = useState<TopAttendanceChartEntry[]>([]);
+  const [monthlyTrendChart, setMonthlyTrendChart] = useState<MonthlyTrendEntry[]>([]);
+  const [scoreBandChart, setScoreBandChart] = useState<ScoreBandEntry[]>([]);
+  const [avgScorePerStudent, setAvgScorePerStudent] = useState<number>(0);
+  const [avgHoursPerStudent, setAvgHoursPerStudent] = useState<number>(0);
+  const [highPerformersCount, setHighPerformersCount] = useState<number>(0);
+  const [analyticsLoading, setAnalyticsLoading] = useState(true);
   const [genderRawData, setGenderRawData] = useState<{ gender: string; semester: string }[]>([]);
   const [genderSemesters, setGenderSemesters] = useState<string[]>([]);
   const [selectedSemester, setSelectedSemester] = useState<string>("all");
@@ -63,8 +85,8 @@ export default function Dashboard() {
     fetchLeaderboard();
     fetchActivities();
     fetchTotalStudents();
-    fetchTopStudentsChart();
     fetchGenderData();
+    fetchPerformanceAnalytics();
   }, []);
 
   useEffect(() => {
@@ -227,58 +249,6 @@ export default function Dashboard() {
     }
   };
 
-  const fetchTopStudentsChart = async () => {
-    try {
-      setTopStudentsLoading(true);
-      const [{ data: scoresData, error: scoresError }, { data: attendanceData, error: attError }, { data: studentsData, error: stuError }] = await Promise.all([
-        supabase.from("debate_scores").select("enrollment_no,total_points"),
-        supabase.from("attendance").select("enrollment_no,hours"),
-        supabase.from("students_details").select("enrollment_no,student_name,member_type"),
-      ]);
-
-      if (scoresError || attError || stuError) return;
-
-      const visibleStudents = (studentsData || []).filter(
-        (student: any) => String(student.member_type || "member").toLowerCase() !== "admin"
-      );
-      const visibleEnrollmentSet = new Set(
-        visibleStudents.map((student: any) => student.enrollment_no).filter(Boolean)
-      );
-      const nameMap: Record<string, string> = {};
-      visibleStudents.forEach((student: any) => {
-        nameMap[student.enrollment_no] = student.student_name;
-      });
-
-      const scoreMap: Record<string, number> = {};
-      (scoresData || []).forEach((row: any) => {
-        const e = row.enrollment_no || "";
-        if (e) scoreMap[e] = (scoreMap[e] || 0) + (Number(row.total_points) || 0);
-      });
-
-      const hoursMap: Record<string, number> = {};
-      (attendanceData || []).forEach((row: any) => {
-        const e = row.enrollment_no || "";
-        if (e) hoursMap[e] = (hoursMap[e] || 0) + (Number(row.hours) || 0);
-      });
-
-      const top5 = Object.entries(scoreMap)
-        .filter(([enroll]) => visibleEnrollmentSet.has(enroll))
-        .sort(([, a], [, b]) => b - a)
-        .slice(0, 5)
-        .map(([enroll, score]) => {
-          const full = nameMap[enroll] || enroll;
-          const shortName = full.split(" ").slice(0, 2).join(" ");
-          return { name: shortName, score: Math.round(score), hours: Math.round(hoursMap[enroll] || 0) };
-        });
-
-      setTopStudentsChart(top5);
-    } catch (e) {
-      console.error("Chart data error:", e);
-    } finally {
-      setTopStudentsLoading(false);
-    }
-  };
-
   const fetchGenderData = async () => {
     try {
       setGenderLoading(true);
@@ -299,6 +269,156 @@ export default function Dashboard() {
       console.error("Gender data error:", e);
     } finally {
       setGenderLoading(false);
+    }
+  };
+
+  const fetchPerformanceAnalytics = async () => {
+    try {
+      setAnalyticsLoading(true);
+      const [{ data: scoresData, error: scoresError }, { data: attendanceData, error: attError }, { data: studentsData, error: stuError }] = await Promise.all([
+        supabase.from("debate_scores").select("enrollment_no,total_points,date"),
+        supabase.from("attendance").select("enrollment_no,hours,date"),
+        supabase.from("students_details").select("enrollment_no,student_name,member_type"),
+      ]);
+
+      if (scoresError || attError || stuError) {
+        throw scoresError || attError || stuError;
+      }
+
+      const visibleStudents = (studentsData || []).filter(
+        (student: any) => String(student.member_type || "member").toLowerCase() !== "admin"
+      );
+
+      const visibleEnrollmentSet = new Set(
+        visibleStudents.map((student: any) => student.enrollment_no).filter(Boolean)
+      );
+
+      const nameMap: Record<string, string> = {};
+      visibleStudents.forEach((student: any) => {
+        nameMap[student.enrollment_no] = student.student_name;
+      });
+
+      const scoreMap: Record<string, number> = {};
+      (scoresData || []).forEach((row: any) => {
+        const enrollNo = row.enrollment_no || "";
+        const points = Number(row.total_points) || 0;
+        if (enrollNo && visibleEnrollmentSet.has(enrollNo)) {
+          scoreMap[enrollNo] = (scoreMap[enrollNo] || 0) + points;
+        }
+      });
+
+      const hoursMap: Record<string, number> = {};
+      (attendanceData || []).forEach((row: any) => {
+        const enrollNo = row.enrollment_no || "";
+        const hours = Number(row.hours) || 0;
+        if (enrollNo && visibleEnrollmentSet.has(enrollNo)) {
+          hoursMap[enrollNo] = (hoursMap[enrollNo] || 0) + hours;
+        }
+      });
+
+      const scoreTop5 = Object.entries(scoreMap)
+        .sort(([, a], [, b]) => b - a)
+        .slice(0, 5)
+        .map(([enrollNo, score]) => {
+          const fullName = nameMap[enrollNo] || enrollNo;
+          const shortName = fullName.split(" ").slice(0, 2).join(" ");
+          return { name: shortName, score: Math.round(score) };
+        });
+
+      const attendanceTop5 = Object.entries(hoursMap)
+        .sort(([, a], [, b]) => b - a)
+        .slice(0, 5)
+        .map(([enrollNo, hours]) => {
+          const fullName = nameMap[enrollNo] || enrollNo;
+          const shortName = fullName.split(" ").slice(0, 2).join(" ");
+          return { name: shortName, hours: Number(hours.toFixed(1)) };
+        });
+
+      setTopScoreChart(scoreTop5);
+      setTopAttendanceChart(attendanceTop5);
+
+      const monthKeys: string[] = [];
+      const monthLabels: Record<string, string> = {};
+      const today = new Date();
+      for (let i = 5; i >= 0; i -= 1) {
+        const d = new Date(today.getFullYear(), today.getMonth() - i, 1);
+        const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
+        monthKeys.push(key);
+        monthLabels[key] = d.toLocaleDateString("en-US", { month: "short", year: "2-digit" });
+      }
+
+      const trendMap: Record<string, { score: number; hours: number }> = {};
+      monthKeys.forEach((key) => {
+        trendMap[key] = { score: 0, hours: 0 };
+      });
+
+      (scoresData || []).forEach((row: any) => {
+        const enrollNo = row.enrollment_no || "";
+        const date = row.date ? String(row.date) : "";
+        const key = date.slice(0, 7);
+        if (visibleEnrollmentSet.has(enrollNo) && trendMap[key]) {
+          trendMap[key].score += Number(row.total_points) || 0;
+        }
+      });
+
+      (attendanceData || []).forEach((row: any) => {
+        const enrollNo = row.enrollment_no || "";
+        const date = row.date ? String(row.date) : "";
+        const key = date.slice(0, 7);
+        if (visibleEnrollmentSet.has(enrollNo) && trendMap[key]) {
+          trendMap[key].hours += Number(row.hours) || 0;
+        }
+      });
+
+      const trendRows: MonthlyTrendEntry[] = monthKeys.map((key) => ({
+        month: monthLabels[key],
+        score: Math.round(trendMap[key].score),
+        hours: Number(trendMap[key].hours.toFixed(1)),
+      }));
+      setMonthlyTrendChart(trendRows);
+
+      const scoreBandCounts = {
+        "0-50": 0,
+        "51-100": 0,
+        "101-150": 0,
+        "151+": 0,
+      };
+
+      visibleStudents.forEach((student: any) => {
+        const total = Number(scoreMap[student.enrollment_no] || 0);
+        if (total <= 50) scoreBandCounts["0-50"] += 1;
+        else if (total <= 100) scoreBandCounts["51-100"] += 1;
+        else if (total <= 150) scoreBandCounts["101-150"] += 1;
+        else scoreBandCounts["151+"] += 1;
+      });
+
+      const bands: ScoreBandEntry[] = [
+        { name: "0-50", value: scoreBandCounts["0-50"], color: "#94a3b8" },
+        { name: "51-100", value: scoreBandCounts["51-100"], color: "#60a5fa" },
+        { name: "101-150", value: scoreBandCounts["101-150"], color: "#34d399" },
+        { name: "151+", value: scoreBandCounts["151+"], color: "#f59e0b" },
+      ];
+      setScoreBandChart(bands.filter((b) => b.value > 0));
+
+      const totalVisibleStudents = visibleStudents.length || 1;
+      const totalScore = Object.values(scoreMap).reduce((sum, v) => sum + v, 0);
+      const totalHours = Object.values(hoursMap).reduce((sum, v) => sum + v, 0);
+      setAvgScorePerStudent(Number((totalScore / totalVisibleStudents).toFixed(1)));
+      setAvgHoursPerStudent(Number((totalHours / totalVisibleStudents).toFixed(1)));
+      setHighPerformersCount(
+        visibleStudents.filter((student: any) => Number(scoreMap[student.enrollment_no] || 0) >= 100).length
+      );
+    } catch (error) {
+      console.error("Performance analytics error:", error);
+      setTopScoreChart([]);
+      setTopAttendanceChart([]);
+      setMonthlyTrendChart([]);
+      setScoreBandChart([]);
+      setAvgScorePerStudent(0);
+      setAvgHoursPerStudent(0);
+      setHighPerformersCount(0);
+    } finally {
+      setAnalyticsLoading(false);
     }
   };
 
@@ -404,6 +524,30 @@ export default function Dashboard() {
         <StatCard icon={BookOpen} title="Research Papers" value={24} subtitle="6 pending review" delay={0.1} />
       </div>
 
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-4">
+        <StatCard
+          icon={TrendingUp}
+          title="Avg Score / Student"
+          value={analyticsLoading ? "..." : avgScorePerStudent}
+          subtitle="Based on cumulative debate scores"
+          delay={0.12}
+        />
+        <StatCard
+          icon={Clock}
+          title="Avg Attendance Hours"
+          value={analyticsLoading ? "..." : avgHoursPerStudent}
+          subtitle="Cumulative hours per student"
+          delay={0.15}
+        />
+        <StatCard
+          icon={Activity}
+          title="High Performers"
+          value={analyticsLoading ? "..." : highPerformersCount}
+          subtitle="Students with score 100+"
+          delay={0.18}
+        />
+      </div>
+
       {/* Two column layout */}
       <div className="grid grid-cols-1 lg:grid-cols-5 gap-3 sm:gap-4">
         {/* Leaderboard */}
@@ -505,7 +649,7 @@ export default function Dashboard() {
 
       {/* Charts Row */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-3 sm:gap-4">
-        {/* Bar Chart - Top 5 Students */}
+        {/* Bar Chart - Top 5 by Score */}
         <motion.div
           initial={{ opacity: 0, y: 12 }}
           animate={{ opacity: 1, y: 0 }}
@@ -515,19 +659,19 @@ export default function Dashboard() {
           <div className="flex items-center justify-between mb-4">
             <h2 className="section-title flex items-center gap-2">
               <BarChart2 className="w-4 h-4 text-primary" />
-              Top 5 Students
+              Top 5 by Score
             </h2>
-            <span className="text-xs font-medium text-muted-foreground">Score &amp; Hours</span>
+            <span className="text-xs font-medium text-muted-foreground">Total Points</span>
           </div>
-          {topStudentsLoading ? (
+          {analyticsLoading ? (
             <div className="flex items-center justify-center py-10">
               <Loader2 className="w-6 h-6 animate-spin text-primary" />
             </div>
-          ) : topStudentsChart.length === 0 ? (
+          ) : topScoreChart.length === 0 ? (
             <div className="text-center py-10 text-muted-foreground text-sm">No data available</div>
           ) : (
             <ResponsiveContainer width="100%" height={240}>
-              <BarChart data={topStudentsChart} margin={{ top: 4, right: 8, left: -10, bottom: 0 }}>
+              <BarChart data={topScoreChart} margin={{ top: 4, right: 8, left: -10, bottom: 0 }}>
                 <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" opacity={0.4} />
                 <XAxis
                   dataKey="name"
@@ -546,10 +690,158 @@ export default function Dashboard() {
                   }}
                 />
                 <Legend wrapperStyle={{ fontSize: 12 }} />
-                <Bar dataKey="score" name="Score" fill="#6366f1" radius={[6, 6, 0, 0]} maxBarSize={32} />
-                <Bar dataKey="hours" name="Hours" fill="#10b981" radius={[6, 6, 0, 0]} maxBarSize={32} />
+                <Bar dataKey="score" name="Score" fill="#4f46e5" radius={[6, 6, 0, 0]} maxBarSize={36} />
               </BarChart>
             </ResponsiveContainer>
+          )}
+        </motion.div>
+
+        {/* Bar Chart - Top 5 by Attendance Hours */}
+        <motion.div
+          initial={{ opacity: 0, y: 12 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.38, duration: 0.4 }}
+          className="glass-card rounded-2xl p-5"
+        >
+          <div className="flex items-center justify-between mb-4">
+            <h2 className="section-title flex items-center gap-2">
+              <CalendarCheck className="w-4 h-4 text-primary" />
+              Top 5 by Attendance
+            </h2>
+            <span className="text-xs font-medium text-muted-foreground">Hours</span>
+          </div>
+          {analyticsLoading ? (
+            <div className="flex items-center justify-center py-10">
+              <Loader2 className="w-6 h-6 animate-spin text-primary" />
+            </div>
+          ) : topAttendanceChart.length === 0 ? (
+            <div className="text-center py-10 text-muted-foreground text-sm">No data available</div>
+          ) : (
+            <ResponsiveContainer width="100%" height={240}>
+              <BarChart data={topAttendanceChart} margin={{ top: 4, right: 8, left: -10, bottom: 0 }}>
+                <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" opacity={0.4} />
+                <XAxis
+                  dataKey="name"
+                  tick={{ fontSize: 10, fill: "var(--muted-foreground)" } as any}
+                  tickLine={false}
+                  axisLine={false}
+                  interval={0}
+                />
+                <YAxis tick={{ fontSize: 11, fill: "var(--muted-foreground)" } as any} tickLine={false} axisLine={false} />
+                <Tooltip
+                  contentStyle={{
+                    background: "var(--card)",
+                    border: "1px solid var(--border)",
+                    borderRadius: "10px",
+                    fontSize: 12,
+                  }}
+                />
+                <Bar dataKey="hours" name="Hours" fill="#059669" radius={[6, 6, 0, 0]} maxBarSize={36} />
+              </BarChart>
+            </ResponsiveContainer>
+          )}
+        </motion.div>
+
+        {/* Line Chart - Monthly Trends */}
+        <motion.div
+          initial={{ opacity: 0, y: 12 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.4, duration: 0.4 }}
+          className="glass-card rounded-2xl p-5"
+        >
+          <div className="flex items-center justify-between mb-4">
+            <h2 className="section-title flex items-center gap-2">
+              <TrendingUp className="w-4 h-4 text-primary" />
+              6-Month Trend
+            </h2>
+            <span className="text-xs font-medium text-muted-foreground">Scores vs Hours</span>
+          </div>
+          {analyticsLoading ? (
+            <div className="flex items-center justify-center py-10">
+              <Loader2 className="w-6 h-6 animate-spin text-primary" />
+            </div>
+          ) : monthlyTrendChart.length === 0 ? (
+            <div className="text-center py-10 text-muted-foreground text-sm">No trend data available</div>
+          ) : (
+            <ResponsiveContainer width="100%" height={240}>
+              <LineChart data={monthlyTrendChart} margin={{ top: 4, right: 8, left: -12, bottom: 0 }}>
+                <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" opacity={0.4} />
+                <XAxis dataKey="month" tick={{ fontSize: 10, fill: "var(--muted-foreground)" } as any} tickLine={false} axisLine={false} />
+                <YAxis tick={{ fontSize: 11, fill: "var(--muted-foreground)" } as any} tickLine={false} axisLine={false} />
+                <Tooltip
+                  contentStyle={{
+                    background: "var(--card)",
+                    border: "1px solid var(--border)",
+                    borderRadius: "10px",
+                    fontSize: 12,
+                  }}
+                />
+                <Legend wrapperStyle={{ fontSize: 12 }} />
+                <Line type="monotone" dataKey="score" name="Score" stroke="#4f46e5" strokeWidth={2.2} dot={{ r: 3 }} />
+                <Line type="monotone" dataKey="hours" name="Hours" stroke="#059669" strokeWidth={2.2} dot={{ r: 3 }} />
+              </LineChart>
+            </ResponsiveContainer>
+          )}
+        </motion.div>
+
+        {/* Pie Chart - Score Distribution */}
+        <motion.div
+          initial={{ opacity: 0, y: 12 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.43, duration: 0.4 }}
+          className="glass-card rounded-2xl p-5"
+        >
+          <div className="flex items-center justify-between mb-4">
+            <h2 className="section-title flex items-center gap-2">
+              <PieIcon className="w-4 h-4 text-primary" />
+              Score Distribution
+            </h2>
+            <span className="text-xs font-medium text-muted-foreground">Student Bands</span>
+          </div>
+          {analyticsLoading ? (
+            <div className="flex items-center justify-center py-10">
+              <Loader2 className="w-6 h-6 animate-spin text-primary" />
+            </div>
+          ) : scoreBandChart.length === 0 ? (
+            <div className="text-center py-10 text-muted-foreground text-sm">No score distribution available</div>
+          ) : (
+            <div className="flex flex-col items-center gap-4">
+              <ResponsiveContainer width="100%" height={200}>
+                <PieChart>
+                  <Pie
+                    data={scoreBandChart}
+                    cx="50%"
+                    cy="50%"
+                    outerRadius={80}
+                    dataKey="value"
+                    labelLine={false}
+                    label={renderCustomLabel}
+                  >
+                    {scoreBandChart.map((entry, index) => (
+                      <Cell key={`score-cell-${index}`} fill={entry.color} />
+                    ))}
+                  </Pie>
+                  <Tooltip
+                    contentStyle={{
+                      background: "var(--card)",
+                      border: "1px solid var(--border)",
+                      borderRadius: "10px",
+                      fontSize: 12,
+                    }}
+                    formatter={(value: number, name: string) => [value, name]}
+                  />
+                </PieChart>
+              </ResponsiveContainer>
+              <div className="flex flex-wrap justify-center gap-3">
+                {scoreBandChart.map((entry) => (
+                  <div key={entry.name} className="flex items-center gap-1.5">
+                    <span className="w-3 h-3 rounded-full" style={{ background: entry.color }} />
+                    <span className="text-xs text-muted-foreground">{entry.name}</span>
+                    <span className="text-xs font-semibold">{entry.value}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
           )}
         </motion.div>
 
