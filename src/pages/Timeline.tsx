@@ -1,0 +1,265 @@
+import { useEffect, useState } from "react";
+import { motion } from "framer-motion";
+import { Calendar, Loader2, Plus, Trash2 } from "lucide-react";
+import { supabase } from "@/lib/supabaseClient";
+import { useToast } from "@/hooks/use-toast";
+import { hasWriteAccess } from "@/lib/auth";
+import { Button } from "@/components/ui/button";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
+
+interface TimelineEntry {
+  id: number;
+  step: string;
+  title: string;
+  description: string;
+  icon_svg?: string | null;
+  display_order: number;
+  is_active: boolean;
+}
+
+export default function Timeline() {
+  const [entries, setEntries] = useState<TimelineEntry[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [open, setOpen] = useState(false);
+  const [formData, setFormData] = useState({
+    step: "",
+    title: "",
+    description: "",
+    display_order: "",
+  });
+  const { toast } = useToast();
+  const canEdit = hasWriteAccess();
+
+  useEffect(() => {
+    fetchTimelineEntries();
+  }, []);
+
+  const fetchTimelineEntries = async () => {
+    try {
+      setLoading(true);
+      const { data, error } = await supabase
+        .from("timeline_entries")
+        .select("*")
+        .eq("is_active", true)
+        .order("display_order", { ascending: true })
+        .order("id", { ascending: true });
+
+      if (error) throw error;
+      setEntries(data || []);
+    } catch (error: any) {
+      toast({
+        variant: "destructive",
+        title: "Error fetching timeline",
+        description: error.message,
+      });
+      setEntries([]);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleAddEntry = async () => {
+    if (!canEdit) {
+      toast({
+        variant: "destructive",
+        title: "Read-only access",
+        description: "Only admin can add timeline entries.",
+      });
+      return;
+    }
+
+    if (!formData.step.trim() || !formData.title.trim() || !formData.description.trim()) {
+      toast({
+        variant: "destructive",
+        title: "Missing required fields",
+        description: "Step, title and description are required.",
+      });
+      return;
+    }
+
+    try {
+      const orderValue = Number.parseInt(formData.display_order, 10);
+      const { error } = await supabase.from("timeline_entries").insert([
+        {
+          step: formData.step.trim(),
+          title: formData.title.trim(),
+          description: formData.description.trim(),
+          display_order: Number.isNaN(orderValue) ? entries.length + 1 : orderValue,
+        },
+      ]);
+
+      if (error) throw error;
+
+      toast({
+        title: "Timeline entry added",
+      });
+
+      setOpen(false);
+      setFormData({
+        step: "",
+        title: "",
+        description: "",
+        display_order: "",
+      });
+      fetchTimelineEntries();
+    } catch (error: any) {
+      toast({
+        variant: "destructive",
+        title: "Error adding timeline entry",
+        description: error.message,
+      });
+    }
+  };
+
+  const handleDeleteEntry = async (id: number) => {
+    if (!canEdit) {
+      toast({
+        variant: "destructive",
+        title: "Read-only access",
+        description: "Only admin can delete timeline entries.",
+      });
+      return;
+    }
+
+    try {
+      const { error } = await supabase.from("timeline_entries").delete().eq("id", id);
+      if (error) throw error;
+
+      toast({
+        title: "Timeline entry deleted",
+      });
+      fetchTimelineEntries();
+    } catch (error: any) {
+      toast({
+        variant: "destructive",
+        title: "Error deleting timeline entry",
+        description: error.message,
+      });
+    }
+  };
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center h-64">
+        <Loader2 className="w-8 h-8 animate-spin text-primary" />
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-4 sm:space-y-5 max-w-4xl">
+      <div className="flex justify-start sm:justify-end">
+        <Dialog open={open} onOpenChange={setOpen}>
+          <DialogTrigger asChild>
+            <Button size="sm" className="rounded-xl gap-1.5 text-sm sm:text-base" disabled={!canEdit}>
+              <Plus className="w-3.5 h-3.5" /> <span className="hidden sm:inline">Add Timeline Entry</span><span className="sm:hidden">Add</span>
+            </Button>
+          </DialogTrigger>
+          <DialogContent className="rounded-2xl sm:max-w-md">
+            <DialogHeader>
+              <DialogTitle>Add Timeline Entry</DialogTitle>
+            </DialogHeader>
+            <div className="space-y-4 pt-2">
+              <div className="space-y-1.5">
+                <Label>Step *</Label>
+                <Input
+                  placeholder="Nov 2025"
+                  className="rounded-xl"
+                  value={formData.step}
+                  onChange={(e) => setFormData({ ...formData, step: e.target.value })}
+                />
+              </div>
+              <div className="space-y-1.5">
+                <Label>Title *</Label>
+                <Input
+                  placeholder="Marked The Beginning"
+                  className="rounded-xl"
+                  value={formData.title}
+                  onChange={(e) => setFormData({ ...formData, title: e.target.value })}
+                />
+              </div>
+              <div className="space-y-1.5">
+                <Label>Description *</Label>
+                <Textarea
+                  placeholder="The origin of SRL, where innovation and research journey began."
+                  className="rounded-xl resize-none"
+                  rows={3}
+                  value={formData.description}
+                  onChange={(e) => setFormData({ ...formData, description: e.target.value })}
+                />
+              </div>
+              <div className="space-y-1.5">
+                <Label>Display Order (optional)</Label>
+                <Input
+                  type="number"
+                  placeholder="1"
+                  className="rounded-xl"
+                  value={formData.display_order}
+                  onChange={(e) => setFormData({ ...formData, display_order: e.target.value })}
+                />
+              </div>
+              <div className="flex justify-end gap-2 pt-2">
+                <Button variant="outline" className="rounded-xl" onClick={() => setOpen(false)}>
+                  Cancel
+                </Button>
+                <Button className="rounded-xl" onClick={handleAddEntry}>
+                  Create
+                </Button>
+              </div>
+            </div>
+          </DialogContent>
+        </Dialog>
+      </div>
+
+      {!canEdit && <p className="text-xs text-muted-foreground">You have read-only access. Only admin can manage timeline entries.</p>}
+
+      {entries.length === 0 ? (
+        <div className="text-center py-12 text-muted-foreground">No timeline entries found. Add your first timeline entry.</div>
+      ) : (
+        <div className="relative">
+          <div className="absolute left-[19px] top-0 bottom-0 w-px bg-border" />
+          <div className="space-y-4">
+            {entries.map((entry, i) => (
+              <motion.div
+                key={entry.id}
+                initial={{ opacity: 0, x: -12 }}
+                animate={{ opacity: 1, x: 0 }}
+                transition={{ delay: i * 0.08, duration: 0.3 }}
+                className="relative pl-12"
+              >
+                <div className="absolute left-[14px] top-5 w-2.5 h-2.5 rounded-full bg-primary border-2 border-background" />
+                <div className="glass-card rounded-2xl p-5">
+                  <div className="flex items-start justify-between gap-4">
+                    <div>
+                      <p className="text-xs font-semibold uppercase tracking-[0.1em] text-primary">{entry.step}</p>
+                      <h3 className="text-sm font-semibold text-foreground mt-1">{entry.title}</h3>
+                      <div className="flex items-center gap-1.5 mt-1 text-xs text-muted-foreground">
+                        <Calendar className="w-3 h-3" />
+                        Order {entry.display_order}
+                      </div>
+                      <p className="text-sm text-muted-foreground mt-2 leading-relaxed">{entry.description}</p>
+                    </div>
+                    <div className="flex gap-1 shrink-0">
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="h-7 w-7 rounded-lg text-destructive"
+                        disabled={!canEdit}
+                        onClick={() => handleDeleteEntry(entry.id)}
+                      >
+                        <Trash2 className="w-3.5 h-3.5" />
+                      </Button>
+                    </div>
+                  </div>
+                </div>
+              </motion.div>
+            ))}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}

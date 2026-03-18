@@ -1,11 +1,44 @@
-import { google } from 'googleapis';
-
 // Configuration
 const API_KEY = import.meta.env.VITE_GOOGLE_SHEETS_API_KEY;
 const SHEET_ID = import.meta.env.VITE_GOOGLE_SHEET_ID;
 
 export interface SheetRow {
   [key: string]: string | number;
+}
+
+const SHEETS_API_BASE = 'https://sheets.googleapis.com/v4/spreadsheets';
+
+function assertSheetsConfig() {
+  if (!API_KEY) {
+    throw new Error('Google Sheets API key is not configured. Please add VITE_GOOGLE_SHEETS_API_KEY to your .env file');
+  }
+
+  if (!SHEET_ID) {
+    throw new Error('Google Sheet ID is not configured. Please add VITE_GOOGLE_SHEET_ID to your .env file');
+  }
+}
+
+function mapRowsToObjects(rows: string[][], useHeaders: boolean): SheetRow[] {
+  if (!rows || rows.length === 0) return [];
+
+  if (useHeaders) {
+    const headers = rows[0] as string[];
+    return rows.slice(1).map((row) => {
+      const obj: SheetRow = {};
+      headers.forEach((header, index) => {
+        obj[header] = row[index] || '';
+      });
+      return obj;
+    });
+  }
+
+  return rows.map((row) => {
+    const obj: SheetRow = {};
+    row.forEach((cell, index) => {
+      obj[`column_${index}`] = cell;
+    });
+    return obj;
+  });
 }
 
 /**
@@ -19,49 +52,24 @@ export const fetchGoogleSheetData = async (
   useHeaders: boolean = true
 ): Promise<SheetRow[]> => {
   try {
-    if (!API_KEY) {
-      throw new Error('Google Sheets API key is not configured. Please add VITE_GOOGLE_SHEETS_API_KEY to your .env file');
+    assertSheetsConfig();
+
+    const url = `${SHEETS_API_BASE}/${SHEET_ID}/values/${encodeURIComponent(range)}?key=${API_KEY}`;
+    const response = await fetch(url);
+
+    if (!response.ok) {
+      throw new Error(`Google Sheets API error: ${response.status} ${response.statusText}`);
     }
 
-    if (!SHEET_ID) {
-      throw new Error('Google Sheet ID is not configured. Please add VITE_GOOGLE_SHEET_ID to your .env file');
-    }
-
-    const sheets = google.sheets({ version: 'v4', auth: API_KEY });
-
-    const response = await sheets.spreadsheets.values.get({
-      spreadsheetId: SHEET_ID,
-      range: range,
-    });
-
-    const rows = response.data.values;
+    const payload = await response.json();
+    const rows = payload.values as string[][] | undefined;
 
     if (!rows || rows.length === 0) {
       console.warn('No data found in the sheet');
       return [];
     }
 
-    // If useHeaders is true, convert array of arrays to array of objects
-    if (useHeaders) {
-      const headers = rows[0] as string[];
-      const data = rows.slice(1).map((row) => {
-        const obj: SheetRow = {};
-        headers.forEach((header, index) => {
-          obj[header] = row[index] || '';
-        });
-        return obj;
-      });
-      return data;
-    }
-
-    // Return raw data as array of objects with numeric keys
-    return rows.map((row) => {
-      const obj: SheetRow = {};
-      row.forEach((cell, index) => {
-        obj[`column_${index}`] = cell;
-      });
-      return obj;
-    });
+    return mapRowsToObjects(rows, useHeaders);
   } catch (error) {
     console.error('Error fetching Google Sheets data:', error);
     throw error;
@@ -77,31 +85,26 @@ export const fetchMultipleRanges = async (
   ranges: string[]
 ): Promise<{ [key: string]: SheetRow[] }> => {
   try {
-    if (!API_KEY || !SHEET_ID) {
-      throw new Error('Google Sheets API key or Sheet ID is not configured');
+    assertSheetsConfig();
+
+    const params = new URLSearchParams({ key: API_KEY! });
+    ranges.forEach((range) => params.append('ranges', range));
+
+    const url = `${SHEETS_API_BASE}/${SHEET_ID}/values:batchGet?${params.toString()}`;
+    const response = await fetch(url);
+
+    if (!response.ok) {
+      throw new Error(`Google Sheets API error: ${response.status} ${response.statusText}`);
     }
 
-    const sheets = google.sheets({ version: 'v4', auth: API_KEY });
-
-    const response = await sheets.spreadsheets.values.batchGet({
-      spreadsheetId: SHEET_ID,
-      ranges: ranges,
-    });
+    const payload = await response.json();
 
     const result: { [key: string]: SheetRow[] } = {};
 
-    response.data.valueRanges?.forEach((valueRange, index) => {
+    payload.valueRanges?.forEach((valueRange: any, index: number) => {
       const rows = valueRange.values;
       if (rows && rows.length > 0) {
-        const headers = rows[0] as string[];
-        const data = rows.slice(1).map((row) => {
-          const obj: SheetRow = {};
-          headers.forEach((header, colIndex) => {
-            obj[header] = row[colIndex] || '';
-          });
-          return obj;
-        });
-        result[ranges[index]] = data;
+        result[ranges[index]] = mapRowsToObjects(rows as string[][], true);
       }
     });
 
@@ -117,19 +120,20 @@ export const fetchMultipleRanges = async (
  */
 export const getSheetMetadata = async () => {
   try {
-    if (!API_KEY || !SHEET_ID) {
-      throw new Error('Google Sheets API key or Sheet ID is not configured');
+    assertSheetsConfig();
+
+    const url = `${SHEETS_API_BASE}/${SHEET_ID}?key=${API_KEY}`;
+    const response = await fetch(url);
+
+    if (!response.ok) {
+      throw new Error(`Google Sheets API error: ${response.status} ${response.statusText}`);
     }
 
-    const sheets = google.sheets({ version: 'v4', auth: API_KEY });
-
-    const response = await sheets.spreadsheets.get({
-      spreadsheetId: SHEET_ID,
-    });
+    const payload = await response.json();
 
     return {
-      title: response.data.properties?.title,
-      sheets: response.data.sheets?.map((sheet) => ({
+      title: payload.properties?.title,
+      sheets: payload.sheets?.map((sheet: any) => ({
         title: sheet.properties?.title,
         sheetId: sheet.properties?.sheetId,
         rowCount: sheet.properties?.gridProperties?.rowCount,
