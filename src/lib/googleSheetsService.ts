@@ -1,5 +1,3 @@
-// Google Sheets integration temporarily disabled.
-/*
 // Configuration
 const API_KEY = import.meta.env.VITE_GOOGLE_SHEETS_API_KEY;
 const SHEET_ID = import.meta.env.VITE_GOOGLE_SHEET_ID;
@@ -19,7 +17,6 @@ function assertSheetsConfig() {
     throw new Error('Google Sheet ID is not configured. Please add VITE_GOOGLE_SHEET_ID to your .env file');
   }
 }
-*/
 
 function mapRowsToObjects(rows: string[][], useHeaders: boolean): SheetRow[] {
   if (!rows || rows.length === 0) return [];
