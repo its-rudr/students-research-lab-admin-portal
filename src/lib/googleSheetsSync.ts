@@ -146,43 +146,11 @@ function transformSheetData(
 /**
  * Sync a single sheet to Supabase table
  */
+/*
 export async function syncSheetToTable(config: SheetConfig): Promise<SyncResult> {
   const result: SyncResult = {
     success: false,
     table: config.supabaseTable,
-    inserted: 0,
-    updated: 0,
-    deleted: 0,
-    errors: [],
-  };
-
-  try {
-    // Fetch data from Google Sheets
-    const sheetData = await fetchGoogleSheetData(config.sheetRange, true);
-    
-    if (!sheetData || sheetData.length === 0) {
-      result.errors.push('No data found in sheet');
-      return result;
-    }
-
-    // Transform data to match Supabase schema
-    const transformedData = transformSheetData(sheetData, config.columnMapping);
-    
-    if (transformedData.length === 0) {
-      result.errors.push('No valid data after transformation');
-      return result;
-    }
-
-    // Clear existing data if configured
-    if (config.clearBeforeSync) {
-      const { error: deleteError } = await supabase
-        .from(config.supabaseTable)
-        .delete()
-        .neq(config.uniqueKey, ''); // Delete all records
-      
-      if (deleteError) {
-        result.errors.push(`Delete error: ${deleteError.message}`);
-        return result;
       }
       result.deleted = 1; // Indicate deletion occurred
     }
@@ -287,9 +255,9 @@ export async function validateSheetStructure(
     return {
       valid: missingColumns.length === 0,
       missingColumns,
-      extraColumns,
-    };
-  } catch (error) {
-    return { valid: false, missingColumns: expectedColumns, extraColumns: [] };
-  }
-}
+      /*
+       * Google Sheets sync functions temporarily disabled
+       */
+      // export async function syncAllSheets(): Promise<SyncResult[]> { ... }
+      // export async function syncSpecificSheets(tableNames: string[]): Promise<SyncResult[]> { ... }
+      // export async function getSyncStatus(): Promise<{ lastSync: Date | null; configs: SheetConfig[]; connected: boolean; }> { ... }
