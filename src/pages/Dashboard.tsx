@@ -621,6 +621,7 @@ export default function Dashboard() {
 
       {/* Charts Row */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-3 sm:gap-4">
+<<<<<<< Updated upstream
         {/* Bar Chart - Top 5 by Score */}
         <motion.div
           initial={{ opacity: 0, y: 12 }}
@@ -817,6 +818,8 @@ export default function Dashboard() {
           )}
         </motion.div>
 
+=======
+>>>>>>> Stashed changes
         {/* Pie Chart - Gender Ratio by Semester */}
         <motion.div
           initial={{ opacity: 0, y: 12 }}

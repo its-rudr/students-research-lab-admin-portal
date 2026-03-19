@@ -158,52 +158,54 @@ export default function Activities() {
 
   return (
     <div className="space-y-4 sm:space-y-5 max-w-4xl">
-      <div className="flex justify-start sm:justify-end">
-        <Dialog open={open} onOpenChange={setOpen}>
-          <DialogTrigger asChild>
-            <Button size="sm" className="rounded-xl gap-1.5 text-sm sm:text-base" disabled={!canEdit}>
-              <Plus className="w-3.5 h-3.5" /> <span className="hidden sm:inline">Add Activity</span><span className="sm:hidden">Add</span>
-            </Button>
-          </DialogTrigger>
-          <DialogContent className="rounded-2xl sm:max-w-md">
-            <DialogHeader><DialogTitle>Add Activity / Event</DialogTitle></DialogHeader>
-            <div className="space-y-4 pt-2">
-              <div className="space-y-1.5">
-                <Label>Title *</Label>
-                <Input 
-                  placeholder="Event title" 
-                  className="rounded-xl"
-                  value={formData.title}
-                  onChange={(e) => setFormData({ ...formData, title: e.target.value })}
-                />
+      {canEdit && (
+        <div className="flex justify-start sm:justify-end">
+          <Dialog open={open} onOpenChange={setOpen}>
+            <DialogTrigger asChild>
+              <Button size="sm" className="rounded-xl gap-1.5 text-sm sm:text-base">
+                <Plus className="w-3.5 h-3.5" /> <span className="hidden sm:inline">Add Activity</span><span className="sm:hidden">Add</span>
+              </Button>
+            </DialogTrigger>
+            <DialogContent className="rounded-2xl sm:max-w-md">
+              <DialogHeader><DialogTitle>Add Activity / Event</DialogTitle></DialogHeader>
+              <div className="space-y-4 pt-2">
+                <div className="space-y-1.5">
+                  <Label>Title *</Label>
+                  <Input 
+                    placeholder="Event title" 
+                    className="rounded-xl"
+                    value={formData.title}
+                    onChange={(e) => setFormData({ ...formData, title: e.target.value })}
+                  />
+                </div>
+                <div className="space-y-1.5">
+                  <Label>Date *</Label>
+                  <Input 
+                    type="date" 
+                    className="rounded-xl"
+                    value={formData.date}
+                    onChange={(e) => setFormData({ ...formData, date: e.target.value })}
+                  />
+                </div>
+                <div className="space-y-1.5">
+                  <Label>Description</Label>
+                  <Textarea 
+                    placeholder="Describe the event..." 
+                    className="rounded-xl resize-none" 
+                    rows={3}
+                    value={formData.description}
+                    onChange={(e) => setFormData({ ...formData, description: e.target.value })}
+                  />
+                </div>
+                <div className="flex justify-end gap-2 pt-2">
+                  <Button variant="outline" className="rounded-xl" onClick={() => setOpen(false)}>Cancel</Button>
+                  <Button className="rounded-xl" onClick={handleAddActivity}>Create</Button>
+                </div>
               </div>
-              <div className="space-y-1.5">
-                <Label>Date *</Label>
-                <Input 
-                  type="date" 
-                  className="rounded-xl"
-                  value={formData.date}
-                  onChange={(e) => setFormData({ ...formData, date: e.target.value })}
-                />
-              </div>
-              <div className="space-y-1.5">
-                <Label>Description</Label>
-                <Textarea 
-                  placeholder="Describe the event..." 
-                  className="rounded-xl resize-none" 
-                  rows={3}
-                  value={formData.description}
-                  onChange={(e) => setFormData({ ...formData, description: e.target.value })}
-                />
-              </div>
-              <div className="flex justify-end gap-2 pt-2">
-                <Button variant="outline" className="rounded-xl" onClick={() => setOpen(false)}>Cancel</Button>
-                <Button className="rounded-xl" onClick={handleAddActivity}>Create</Button>
-              </div>
-            </div>
-          </DialogContent>
-        </Dialog>
-      </div>
+            </DialogContent>
+          </Dialog>
+        </div>
+      )}
       {!canEdit && <p className="text-xs text-muted-foreground">You have read-only access. Only admin can manage activities.</p>}
 
       {/* Timeline */}
@@ -236,17 +238,18 @@ export default function Activities() {
                         <p className="text-sm text-muted-foreground mt-2 leading-relaxed">{activity.description}</p>
                       )}
                     </div>
-                    <div className="flex gap-1 shrink-0">
-                      <Button 
-                        variant="ghost" 
-                        size="icon" 
-                        className="h-7 w-7 rounded-lg text-destructive"
-                        disabled={!canEdit}
-                        onClick={() => handleDeleteActivity(activity.id)}
-                      >
-                        <Trash2 className="w-3.5 h-3.5" />
-                      </Button>
-                    </div>
+                    {canEdit && (
+                      <div className="flex gap-1 shrink-0">
+                        <Button 
+                          variant="ghost" 
+                          size="icon" 
+                          className="h-7 w-7 rounded-lg text-destructive"
+                          onClick={() => handleDeleteActivity(activity.id)}
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                        </Button>
+                      </div>
+                    )}
                   </div>
                 </div>
               </motion.div>
