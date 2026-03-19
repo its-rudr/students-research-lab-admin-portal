@@ -37,8 +37,8 @@ const navItems = [
   { title: "Activities", path: "/activities", icon: Calendar },
   { title: "Timeline", path: "/timeline", icon: Milestone },
   { title: "Member CV", path: "/member-cv", icon: FileUser },
-  { title: "Sheet Sync", path: "/sheet-sync", icon: RefreshCw },
-  { title: "Google Sheets", path: "/google-sheets", icon: FileSpreadsheet },
+  // { title: "Sheet Sync", path: "/sheet-sync", icon: RefreshCw },
+  // { title: "Google Sheets", path: "/google-sheets", icon: FileSpreadsheet },
   { title: "Join Requests", path: "/join-requests", icon: ShieldCheck },
 ];
 
