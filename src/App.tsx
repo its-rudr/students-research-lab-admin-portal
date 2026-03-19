@@ -12,6 +12,7 @@ import Attendance from "@/pages/Attendance";
 import Scores from "@/pages/Scores";
 import Activities from "@/pages/Activities";
 import Timeline from "@/pages/Timeline";
+import JoinRequests from "@/pages/JoinRequests";
 import MemberCV from "./pages/MemberCV";
 import Login from "@/pages/Login";
 import GoogleSheetData from "@/pages/GoogleSheetData";
@@ -38,6 +39,7 @@ const App = () => {
                 <Route path="/scores" element={<Scores />} />
                 <Route path="/activities" element={<Activities />} />
                 <Route path="/timeline" element={<Timeline />} />
+                <Route path="/join-requests" element={<JoinRequests />} />
                 <Route path="/member-cv" element={<MemberCV />} />
                 <Route path="/google-sheets" element={<GoogleSheetData />} />
                 <Route path="/sheet-sync" element={<SheetSync />} />

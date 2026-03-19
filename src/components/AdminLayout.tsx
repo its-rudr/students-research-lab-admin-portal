@@ -19,6 +19,7 @@ import {
   RefreshCw,
   FileUser,
   Milestone,
+  ShieldCheck,
 } from "lucide-react";
 import { NavLink } from "react-router-dom";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
@@ -38,6 +39,7 @@ const navItems = [
   { title: "Member CV", path: "/member-cv", icon: FileUser },
   { title: "Sheet Sync", path: "/sheet-sync", icon: RefreshCw },
   { title: "Google Sheets", path: "/google-sheets", icon: FileSpreadsheet },
+  { title: "Join Requests", path: "/join-requests", icon: ShieldCheck },
 ];
 
 const pageNames: Record<string, string> = {
@@ -51,6 +53,7 @@ const pageNames: Record<string, string> = {
   "/member-cv": "Member CV Profiles",
   "/sheet-sync": "Sync Google Sheets",
   "/google-sheets": "Google Sheets Data",
+  "/join-requests": "Join Us Requests",
 };
 
 export default function AdminLayout() {
