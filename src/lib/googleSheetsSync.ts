@@ -50,40 +50,64 @@ export const SYNC_CONFIGS: SheetConfig[] = [
       'Member Type': 'member_type',
     },
   },
-  {
-    sheetRange: 'Scores',
-    supabaseTable: 'debate_scores',
-    uniqueKey: 'id',
-    clearBeforeSync: false,
-    columnMapping: {
-      'Enrollment No': 'enrollment_no',
-      'Points': 'total_points',
-      'Date': 'date',
+  // Google Sheets sync temporarily disabled.
+  /*
+  export const SYNC_CONFIGS: SheetConfig[] = [
+    {
+      sheetRange: 'Students', // Name of the sheet in Google Sheets
+      supabaseTable: 'students_details',
+      uniqueKey: 'enrollment_no',
+      clearBeforeSync: false,
+      columnMapping: {
+        // Google Sheets column → Supabase column
+        'Name': 'student_name',
+        'Enrollment No': 'enrollment_no',
+        'Email': 'email',
+        'Contact': 'contact_no',
+        'Department': 'department',
+        'Institute': 'institute_name',
+        'Semester': 'semester',
+        'Division': 'division',
+        'Batch': 'batch',
+        'Gender': 'gender',
+        'Member Type': 'member_type',
+      },
     },
-  },
-  {
-    sheetRange: 'Attendance',
-    supabaseTable: 'attendance',
-    uniqueKey: 'id',
-    clearBeforeSync: false,
-    columnMapping: {
-      'Enrollment No': 'enrollment_no',
-      'Date': 'date',
-      'Hours': 'hours',
+    {
+      sheetRange: 'Scores',
+      supabaseTable: 'debate_scores',
+      uniqueKey: 'id',
+      clearBeforeSync: false,
+      columnMapping: {
+        'Enrollment No': 'enrollment_no',
+        'Points': 'total_points',
+        'Date': 'date',
+      },
     },
-  },
-  {
-    sheetRange: 'Activities',
-    supabaseTable: 'activities',
-    uniqueKey: 'id',
-    clearBeforeSync: false,
-    columnMapping: {
-      'Title': 'title',
-      'Date': 'date',
-      'Description': 'description',
+    {
+      sheetRange: 'Attendance',
+      supabaseTable: 'attendance',
+      uniqueKey: 'id',
+      clearBeforeSync: false,
+      columnMapping: {
+        'Enrollment No': 'enrollment_no',
+        'Date': 'date',
+        'Hours': 'hours',
+      },
     },
-  },
-];
+    {
+      sheetRange: 'Activities',
+      supabaseTable: 'activities',
+      uniqueKey: 'id',
+      clearBeforeSync: false,
+      columnMapping: {
+        'Title': 'title',
+        'Date': 'date',
+        'Description': 'description',
+      },
+    }
+  ];
+  */
 
 /**
  * Transform sheet data to match Supabase schema
