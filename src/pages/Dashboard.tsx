@@ -631,9 +631,7 @@ export default function Dashboard() {
                   <div className="w-1.5 h-1.5 rounded-full bg-primary mt-2 shrink-0" />
                   <div className="min-w-0 flex-1">
                     <p className="text-sm font-medium text-foreground">{activity.title}</p>
-                    <p className="text-xs text-muted-foreground mt-0.5">
-                      {formatDate(activity.date)}
-                    </p>
+                    {/* Date removed as per admin portal requirement */}
                     {activity.description && (
                       <p className="text-xs text-muted-foreground mt-1 line-clamp-2">
                         {activity.description}
