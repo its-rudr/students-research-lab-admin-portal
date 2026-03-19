@@ -100,32 +100,62 @@ export default function Login() {
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-primary/10 via-background to-primary/20 p-4">
+    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-primary/10 via-background to-primary/20 p-4" style={{ backgroundImage: 'none' }}>
       <motion.div
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.5 }}
-        className="w-full max-w-md"
+        className="w-full max-w-5xl flex items-center gap-8 lg:gap-16"
       >
-        {/* Logo & Header */}
-        <div className="text-center mb-8">
-          <div className="inline-flex items-center rounded-full border border-primary/15 bg-primary/8 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.16em] text-primary mb-4">
-            Secure Member Access
+        {/* Logo Section - Left Side */}
+        <motion.div
+          initial={{ scale: 0.8, opacity: 0 }}
+          animate={{ scale: 1, opacity: 1 }}
+          transition={{ delay: 0.2 }}
+          className="hidden lg:flex flex-col items-center justify-center flex-1"
+        >
+          <img src="/SRL Logo.svg" alt="SRL Logo" className="w-80 h-80 mb-8" />
+          <div className="text-center">
+            <h2 className="text-2xl font-bold text-foreground mb-2">Students Research Lab</h2>
+            <p className="text-muted-foreground">MMPSRPC, KSV</p>
           </div>
-          <motion.div
-            initial={{ scale: 0.8, opacity: 0 }}
-            animate={{ scale: 1, opacity: 1 }}
-            transition={{ delay: 0.2 }}
-            className="inline-flex items-center justify-center mb-4"
-          >
-            <img src="/SRL Logo.svg" alt="SRL Logo" className="w-24 h-24" />
-          </motion.div>
-          <h1 className="text-3xl font-bold text-foreground mb-2">Admin Portal</h1>
-          <p className="text-muted-foreground">Students Research Lab Management</p>
-          <p className="text-sm text-muted-foreground mt-3 max-w-sm mx-auto leading-relaxed">
-            Access member records, research activities, scoreboards, and profile updates from one clean workspace.
-          </p>
-        </div>
+        </motion.div>
+
+        {/* Login Section - Right Side */}
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.3 }}
+          className="w-full max-w-md"
+        >
+          {/* Mobile Logo */}
+          <div className="lg:hidden text-center mb-8">
+            <div className="inline-flex items-center rounded-full border border-primary/15 bg-primary/8 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.16em] text-primary mb-4">
+              Secure Member Access
+            </div>
+            <motion.div
+              initial={{ scale: 0.8, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              transition={{ delay: 0.2 }}
+              className="inline-flex items-center justify-center mb-4"
+            >
+              <img src="/SRL Logo.svg" alt="SRL Logo" className="w-32 h-32" />
+            </motion.div>
+            <h1 className="text-3xl font-bold text-foreground mb-2">Admin Portal</h1>
+            <p className="text-muted-foreground">Students Research Lab Management</p>
+            <p className="text-sm text-muted-foreground mt-3 max-w-sm mx-auto leading-relaxed">
+              Access member records, research activities, scoreboards, and profile updates from one clean workspace.
+            </p>
+          </div>
+
+          {/* Login Header - Desktop */}
+          <div className="hidden lg:block text-center mb-8">
+            <h1 className="text-3xl font-bold text-foreground mb-2">Admin Portal</h1>
+            <p className="text-muted-foreground">Login to your account</p>
+            <p className="text-sm text-muted-foreground mt-3 leading-relaxed">
+              Access member records and manage research activities
+            </p>
+          </div>
 
         {/* Login Card */}
         <motion.div
@@ -137,13 +167,13 @@ export default function Login() {
           <form onSubmit={handleLogin} className="space-y-6">
             <div className="space-y-2">
               <Label htmlFor="email">Email Address</Label>
-              <div className="relative">
-                <Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+              <div className="flex gap-2 items-center">
+                <Mail className="w-4 h-4 text-muted-foreground flex-shrink-0 mt-1" />
                 <Input
                   id="email"
                   type="email"
                   placeholder="admin@example.com"
-                  className="pl-10 rounded-xl"
+                  className="rounded-xl flex-1"
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
                   required
@@ -154,30 +184,32 @@ export default function Login() {
 
             <div className="space-y-2">
               <Label htmlFor="password">Password</Label>
-              <div className="relative">
-                <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-                <Input
-                  id="password"
-                  type={showPassword ? "text" : "password"}
-                  placeholder="Enter your password"
-                  className="pl-10 pr-10 rounded-xl"
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                  required
-                  disabled={loading}
-                />
-                <button
-                  type="button"
-                  onClick={() => setShowPassword(!showPassword)}
-                  className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors"
-                  disabled={loading}
-                >
-                  {showPassword ? (
-                    <EyeOff className="w-4 h-4" />
-                  ) : (
-                    <Eye className="w-4 h-4" />
-                  )}
-                </button>
+              <div className="flex gap-2 items-center">
+                <Lock className="w-4 h-4 text-muted-foreground flex-shrink-0 mt-1" />
+                <div className="relative flex-1">
+                  <Input
+                    id="password"
+                    type={showPassword ? "text" : "password"}
+                    placeholder="Enter your password"
+                    className="pr-10 rounded-xl w-full"
+                    value={password}
+                    onChange={(e) => setPassword(e.target.value)}
+                    required
+                    disabled={loading}
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowPassword(!showPassword)}
+                    className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors"
+                    disabled={loading}
+                  >
+                    {showPassword ? (
+                      <EyeOff className="w-4 h-4" />
+                    ) : (
+                      <Eye className="w-4 h-4" />
+                    )}
+                  </button>
+                </div>
               </div>
             </div>
 
@@ -204,9 +236,10 @@ export default function Login() {
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
           transition={{ delay: 0.5 }}
-          className="text-center mt-6 text-sm text-muted-foreground"
+          className="text-center mt-6 text-sm text-muted-foreground w-full"
         >
           <p>© 2026 Students Research Lab. All rights reserved.</p>
+        </motion.div>
         </motion.div>
       </motion.div>
     </div>

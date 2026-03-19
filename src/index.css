@@ -139,7 +139,8 @@
     pointer-events: none;
     z-index: 0;
     background: url("/SRL Logo.svg") center center / 540px no-repeat;
-    opacity: 0.12;
+    opacity: 0;
+    display: none;
   }
 
   body::after {
