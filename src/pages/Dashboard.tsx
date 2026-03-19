@@ -197,45 +197,19 @@ export default function Dashboard() {
     try {
       setLoading(true);
       
-      // Fetch all scores
-      const { data: scoresData, error: scoresError } = await supabase
+      // Fetch top 5 from debate_scores table
+      const { data: leaderboardData, error: leaderboardError } = await supabase
         .from("debate_scores")
-        .select("*");
+        .select("name, total_points, field, enrollment_no")
+        .order("total_points", { ascending: false })
+        .limit(5);
 
-      if (scoresError) throw scoresError;
-
-      // Fetch student details
-      const { data: studentsData, error: studentsError } = await supabase
-        .from("students_details")
-        .select("enrollment_no, student_name, department, member_type");
-
-      if (studentsError) throw studentsError;
-      const visibleStudents = (studentsData || []).filter(
-        (student: any) => String(student.member_type || "member").toLowerCase() !== "admin"
-      );
-
-      // Aggregate scores by enrollment_no
-      const scoreMap: { [key: string]: number } = {};
-      (scoresData || []).forEach((score: any) => {
-        const enrollNo = score.enrollment_no || score["enroll no."] || score.enroll_no || "";
-        const points = Number(score.total_points ?? score.points ?? score.score ?? 0) || 0;
-        if (enrollNo) {
-          scoreMap[enrollNo] = (scoreMap[enrollNo] || 0) + points;
-        }
-      });
-
-      // Create leaderboard entries
-      const leaderboardData: LeaderboardEntry[] = visibleStudents
-        .map((student: any) => ({
-          name: student.student_name || "Unknown",
-          score: Math.round(scoreMap[student.enrollment_no] || 0),
-          field: student.department || "N/A",
-          enrollment_no: student.enrollment_no,
-        }))
-        .sort((a: LeaderboardEntry, b: LeaderboardEntry) => b.score - a.score)
-        .slice(0, 5);
-
-      setLeaderboard(leaderboardData);
+      if (leaderboardError) throw leaderboardError;
+      // Map total_points to score for compatibility
+      setLeaderboard((leaderboardData || []).map(entry => ({
+        ...entry,
+        score: entry.total_points
+      })));
     } catch (error: any) {
       console.error("Error fetching leaderboard:", error);
       toast({
@@ -657,7 +631,7 @@ export default function Dashboard() {
           <div className="flex items-center justify-between mb-4">
             <h2 className="section-title flex items-center gap-2">
               <BarChart2 className="w-4 h-4 text-primary" />
-              Top 5 by Score
+              Top 5
             </h2>
             <span className="text-xs font-medium text-muted-foreground">Total Points</span>
           </div>
