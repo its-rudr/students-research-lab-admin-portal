@@ -231,9 +231,13 @@ export async function validateSheetStructure(
     return {
       valid: missingColumns.length === 0,
       missingColumns,
-      /*
-       * Google Sheets sync functions temporarily disabled
-       */
-      // export async function syncAllSheets(): Promise<SyncResult[]> { ... }
-      // export async function syncSpecificSheets(tableNames: string[]): Promise<SyncResult[]> { ... }
-      // export async function getSyncStatus(): Promise<{ lastSync: Date | null; configs: SheetConfig[]; connected: boolean; }> { ... }
+      extraColumns,
+    };
+  } catch (error) {
+    return {
+      valid: false,
+      missingColumns: expectedColumns,
+      extraColumns: [],
+    };
+  }
+}
