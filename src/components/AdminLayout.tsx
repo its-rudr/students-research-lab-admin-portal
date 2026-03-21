@@ -57,7 +57,7 @@ const pageNames: Record<string, string> = {
 };
 
 export default function AdminLayout() {
-  const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [sidebarOpen, setSidebarOpen] = useState(() => window.innerWidth >= 1024);
   const location = useLocation();
   const navigate = useNavigate();
   const { toast } = useToast();

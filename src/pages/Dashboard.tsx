@@ -197,17 +197,33 @@ export default function Dashboard() {
     try {
       setLoading(true);
       
-      // Fetch top 5 from debate_scores table
+      // Fetch top 5 from debate_scores table (only valid columns)
       const { data: leaderboardData, error: leaderboardError } = await supabase
         .from("debate_scores")
-        .select("name, total_points, field, enrollment_no")
+        .select("enrollment_no, total_points")
         .order("total_points", { ascending: false })
         .limit(5);
 
       if (leaderboardError) throw leaderboardError;
-      // Map total_points to score for compatibility
+
+      // Fetch student details for these enrollments
+      const enrollmentNos = (leaderboardData || []).map(e => e.enrollment_no).filter(Boolean);
+      let studentsMap = {};
+      if (enrollmentNos.length > 0) {
+        const { data: students, error: studentsError } = await supabase
+          .from("students_details")
+          .select("enrollment_no, student_name, field")
+          .in("enrollment_no", enrollmentNos);
+        if (!studentsError && students) {
+          studentsMap = Object.fromEntries(students.map(s => [s.enrollment_no, s]));
+        }
+      }
+
+      // Merge data for leaderboard
       setLeaderboard((leaderboardData || []).map(entry => ({
         ...entry,
+        name: studentsMap[entry.enrollment_no]?.student_name || "",
+        field: studentsMap[entry.enrollment_no]?.field || "",
         score: entry.total_points
       })));
     } catch (error: any) {
@@ -252,7 +268,7 @@ export default function Dashboard() {
       const [{ data: scoresData, error: scoresError }, { data: attendanceData, error: attError }, { data: studentsData, error: stuError }] = await Promise.all([
         supabase.from("debate_scores").select("enrollment_no,total_points,date"),
         supabase.from("attendance").select("enrollment_no,hours,date"),
-        supabase.from("students_details").select("enrollment_no,student_name,member_type"),
+        supabase.from("students_details").select("enrollment_no,student_name,member_type,field"),
       ]);
 
       if (scoresError || attError || stuError) {
@@ -621,7 +637,6 @@ export default function Dashboard() {
 
       {/* Charts Row */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-3 sm:gap-4">
-<<<<<<< Updated upstream
         {/* Bar Chart - Top 5 by Score */}
         <motion.div
           initial={{ opacity: 0, y: 12 }}
@@ -818,8 +833,6 @@ export default function Dashboard() {
           )}
         </motion.div>
 
-=======
->>>>>>> Stashed changes
         {/* Pie Chart - Gender Ratio by Semester */}
         <motion.div
           initial={{ opacity: 0, y: 12 }}

@@ -1,19 +1,22 @@
-import { useEffect, useState } from "react";
-import { useNavigate } from "react-router-dom";
-import { motion } from "framer-motion";
-import { Lock, Mail, Eye, EyeOff } from "lucide-react";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { useToast } from "@/hooks/use-toast";
-import { supabase } from "@/lib/supabaseClient";
-import { isAuthenticated, saveSession } from "@/lib/auth";
+
+
+import React, { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
+import { motion } from 'framer-motion';
+import { Button } from '../components/ui/button';
+import { Input } from '../components/ui/input';
+import { Label } from '../components/ui/label';
+import { Mail, Lock, Eye, EyeOff } from 'lucide-react';
+import { useToast } from '../hooks/use-toast';
+import { isAuthenticated, saveSession } from '../lib/auth';
+import { supabase } from '../lib/supabaseClient';
 
 export default function Login() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [showLogo, setShowLogo] = useState(true); // Desktop logo visibility
   const navigate = useNavigate();
   const { toast } = useToast();
 
@@ -107,19 +110,23 @@ export default function Login() {
         transition={{ duration: 0.5 }}
         className="w-full max-w-5xl flex items-center gap-8 lg:gap-16"
       >
-        {/* Logo Section - Left Side */}
-        <motion.div
-          initial={{ scale: 0.8, opacity: 0 }}
-          animate={{ scale: 1, opacity: 1 }}
-          transition={{ delay: 0.2 }}
-          className="hidden lg:flex flex-col items-center justify-center flex-1"
-        >
-          <img src="/SRL Logo.svg" alt="SRL Logo" className="w-80 h-80 mb-8" />
-          <div className="text-center">
-            <h2 className="text-2xl font-bold text-foreground mb-2">Students Research Lab</h2>
-            <p className="text-muted-foreground">MMPSRPC, KSV</p>
-          </div>
-        </motion.div>
+        {/* Logo Section - Left Side (always visible, closable on desktop) */}
+        {showLogo && (
+          <motion.div
+            initial={{ scale: 0.8, opacity: 0 }}
+            animate={{ scale: 1, opacity: 1 }}
+            transition={{ delay: 0.2 }}
+            className="flex flex-col items-center justify-center flex-1 relative bg-white/0"
+            style={{ minWidth: 0 }}
+          >
+            {/* Close button removed as per request */}
+            <img src="/SRL Logo.svg" alt="SRL Logo" className="w-80 h-80 mb-8" />
+            <div className="text-center">
+              <h2 className="text-2xl font-bold text-foreground mb-2">Students Research Lab</h2>
+              <p className="text-muted-foreground">MMPSRPC, KSV</p>
+            </div>
+          </motion.div>
+        )}
 
         {/* Login Section - Right Side */}
         <motion.div
@@ -137,9 +144,9 @@ export default function Login() {
               initial={{ scale: 0.8, opacity: 0 }}
               animate={{ scale: 1, opacity: 1 }}
               transition={{ delay: 0.2 }}
-              className="inline-flex items-center justify-center mb-4"
+              className="flex justify-center mb-4"
             >
-              <img src="/SRL Logo.svg" alt="SRL Logo" className="w-32 h-32" />
+              <img src="/SRL Logo.svg" alt="SRL Logo" className="w-32 h-32 mx-auto" />
             </motion.div>
             <h1 className="text-3xl font-bold text-foreground mb-2">Admin Portal</h1>
             <p className="text-muted-foreground">Students Research Lab Management</p>
