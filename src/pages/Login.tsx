@@ -16,7 +16,6 @@ export default function Login() {
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
-  const [showLogo, setShowLogo] = useState(true); // Desktop logo visibility
   const navigate = useNavigate();
   const { toast } = useToast();
 
@@ -103,152 +102,127 @@ export default function Login() {
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-primary/10 via-background to-primary/20 p-4" style={{ backgroundImage: 'none' }}>
-      <motion.div
-        initial={{ opacity: 0, y: 20 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.5 }}
-        className="w-full max-w-5xl flex items-center gap-8 lg:gap-16"
-      >
-        {/* Logo Section - Left Side (always visible, closable on desktop) */}
-        {showLogo && (
+    <div className="min-h-screen flex flex-col bg-pastel-gradient-login overflow-x-hidden">
+      <div className="flex-1 flex items-center justify-center p-4 lg:p-8">
+        <div className="w-full max-w-[1000px] flex flex-col lg:flex-row items-center lg:items-start justify-center gap-10 lg:gap-14 lg:mt-6">
+
+          {/* Left Side: Branding & Hero (Desktop & Tablet) */}
           <motion.div
-            initial={{ scale: 0.8, opacity: 0 }}
-            animate={{ scale: 1, opacity: 1 }}
-            transition={{ delay: 0.2 }}
-            className="flex flex-col items-center justify-center flex-1 relative bg-white/0"
-            style={{ minWidth: 0 }}
+            initial={{ opacity: 0, x: -30 }}
+            animate={{ opacity: 1, x: 0 }}
+            transition={{ duration: 0.8 }}
+            className="flex-1 flex flex-col items-center lg:items-start space-y-6"
           >
-            {/* Close button removed as per request */}
-            <img src="/SRL Logo.svg" alt="SRL Logo" className="w-80 h-80 mb-8" />
-            <div className="text-center">
-              <h2 className="text-2xl font-bold text-foreground mb-2">Students Research Lab</h2>
-              <p className="text-muted-foreground">MMPSRPC, KSV</p>
+            {/* Logo and Brand Name beside it */}
+            <div className="flex items-center gap-5">
+              <img src="/SRL Logo.svg" alt="SRL Logo" className="w-16 h-16 lg:w-20 lg:h-20 drop-shadow-xl" />
+              <h1 className="text-3xl lg:text-4xl font-extrabold leading-tight tracking-tighter">
+                <span className="animate-gradient-text">Students Research Lab</span>
+              </h1>
+            </div>
+
+            {/* Hero Image / Content - Below the brand name */}
+            <div className="relative group max-w-[420px] w-full aspect-[4/5] lg:aspect-auto lg:h-[350px]">
+              <div className="absolute inset-0 bg-white/30 backdrop-blur-md rounded-[2rem] overflow-hidden shadow-2xl border border-white/40 group-hover:shadow-teal-500/10 transition-shadow duration-500">
+                <img
+                  src="/hero-login.jpg"
+                  alt="Research Lab"
+                  className="w-full h-full object-cover opacity-95 transition-transform duration-10000 group-hover:scale-110"
+                />
+                <div className="absolute inset-0 bg-gradient-to-t from-black/20 via-transparent to-transparent opacity-60" />
+              </div>
+
+              <div className="absolute -bottom-8 -left-8 w-32 h-32 bg-teal-200/15 rounded-full blur-3xl animate-pulse" />
             </div>
           </motion.div>
-        )}
 
-        {/* Login Section - Right Side */}
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.3 }}
-          className="w-full max-w-md"
-        >
-          {/* Mobile Logo */}
-          <div className="lg:hidden text-center mb-8">
-            <div className="inline-flex items-center rounded-full border border-primary/15 bg-primary/8 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.16em] text-primary mb-4">
-              Secure Member Access
-            </div>
-            <motion.div
-              initial={{ scale: 0.8, opacity: 0 }}
-              animate={{ scale: 1, opacity: 1 }}
-              transition={{ delay: 0.2 }}
-              className="flex justify-center mb-4"
-            >
-              <img src="/SRL Logo.svg" alt="SRL Logo" className="w-32 h-32 mx-auto" />
-            </motion.div>
-            <h1 className="text-3xl font-bold text-foreground mb-2">Admin Portal</h1>
-            <p className="text-muted-foreground">Students Research Lab Management</p>
-            <p className="text-sm text-muted-foreground mt-3 max-w-sm mx-auto leading-relaxed">
-              Access member records, research activities, scoreboards, and profile updates from one clean workspace.
-            </p>
-          </div>
+          {/* Right Side: Login Form */}
+          <motion.div
+            initial={{ opacity: 0, scale: 0.95 }}
+            animate={{ opacity: 1, scale: 1 }}
+            transition={{ delay: 0.3, duration: 0.5 }}
+            className="w-full max-w-[390px] space-y-4 lg:mt-2"
+          >
+            <div className="bg-white/80 backdrop-blur-xl border border-white/60 rounded-[2rem] p-10 shadow-2xl flex flex-col items-center">
+              <p className="text-[12px] leading-relaxed text-center italic text-teal-950/80 mb-8 font-semibold max-w-[300px] tracking-tight">
+                "Fostering a disciplined research culture, consistency in academic practice, and excellence through collaborative scholarly engagement"
+              </p>
+              <h2 className="text-2xl font-extrabold text-teal-950 mb-1 tracking-tight">Login to SRL</h2>
+              <p className="text-sm text-teal-800/80 mb-8 font-bold tracking-wide">Enter your credentials below</p>
 
-          {/* Login Header - Desktop */}
-          <div className="hidden lg:block text-center mb-8">
-            <h1 className="text-3xl font-bold text-foreground mb-2">Admin Portal</h1>
-            <p className="text-muted-foreground">Login to your account</p>
-            <p className="text-sm text-muted-foreground mt-3 leading-relaxed">
-              Access member records and manage research activities
-            </p>
-          </div>
-
-        {/* Login Card */}
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.3 }}
-          className="glass-card rounded-2xl p-8 shadow-xl"
-        >
-          <form onSubmit={handleLogin} className="space-y-6">
-            <div className="space-y-2">
-              <Label htmlFor="email">Email Address</Label>
-              <div className="flex gap-2 items-center">
-                <Mail className="w-4 h-4 text-muted-foreground flex-shrink-0 mt-1" />
-                <Input
-                  id="email"
-                  type="email"
-                  placeholder="admin@example.com"
-                  className="rounded-xl flex-1"
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
-                  required
-                  disabled={loading}
-                />
-              </div>
-            </div>
-
-            <div className="space-y-2">
-              <Label htmlFor="password">Password</Label>
-              <div className="flex gap-2 items-center">
-                <Lock className="w-4 h-4 text-muted-foreground flex-shrink-0 mt-1" />
-                <div className="relative flex-1">
-                  <Input
-                    id="password"
-                    type={showPassword ? "text" : "password"}
-                    placeholder="Enter your password"
-                    className="pr-10 rounded-xl w-full"
-                    value={password}
-                    onChange={(e) => setPassword(e.target.value)}
-                    required
-                    disabled={loading}
-                  />
-                  <button
-                    type="button"
-                    onClick={() => setShowPassword(!showPassword)}
-                    className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors"
-                    disabled={loading}
-                  >
-                    {showPassword ? (
-                      <EyeOff className="w-4 h-4" />
-                    ) : (
-                      <Eye className="w-4 h-4" />
-                    )}
-                  </button>
+              <form onSubmit={handleLogin} className="w-full space-y-6">
+                <div className="space-y-2">
+                  <Label htmlFor="email" className="text-[11px] font-extrabold text-teal-950 ml-1 uppercase tracking-[0.12em]">Login Email ID</Label>
+                  <div className="relative flex items-center">
+                    <Mail className="absolute left-4 w-5 h-5 text-teal-700/70 z-10 pointer-events-none" />
+                    <Input
+                      id="email"
+                      type="email"
+                      placeholder="Email"
+                      className="!pl-14 h-14 bg-white/70 border-teal-200/50 hover:border-teal-400 focus:border-teal-600 rounded-2xl transition-all shadow-sm focus:shadow-teal-200/30 text-teal-950 font-medium"
+                      value={email}
+                      onChange={(e) => setEmail(e.target.value)}
+                      required
+                      disabled={loading}
+                    />
+                  </div>
                 </div>
-              </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="password" className="text-[11px] font-extrabold text-teal-950 ml-1 uppercase tracking-[0.12em]">Password</Label>
+                  <div className="relative flex items-center">
+                    <Lock className="absolute left-4 w-5 h-5 text-teal-700/70 z-10 pointer-events-none" />
+                    <Input
+                      id="password"
+                      type={showPassword ? "text" : "password"}
+                      placeholder="Password"
+                      className="!pl-14 !pr-14 h-14 bg-white/70 border-teal-200/50 hover:border-teal-400 focus:border-teal-600 rounded-2xl transition-all shadow-sm focus:shadow-teal-200/30 text-teal-950 font-medium"
+                      value={password}
+                      onChange={(e) => setPassword(e.target.value)}
+                      required
+                      disabled={loading}
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowPassword(!showPassword)}
+                      className="absolute right-4 text-teal-700/60 hover:text-teal-900 transition-colors z-10"
+                      disabled={loading}
+                    >
+                      {showPassword ? (
+                        <EyeOff className="w-5 h-5" />
+                      ) : (
+                        <Eye className="w-5 h-5" />
+                      )}
+                    </button>
+                  </div>
+                </div>
+
+                <Button
+                  type="submit"
+                  className="w-full h-14 rounded-2xl bg-teal-700 hover:bg-teal-800 active:scale-[0.98] text-white font-extrabold transition-all shadow-xl hover:shadow-teal-700/30 mt-4 text-base tracking-wide"
+                  disabled={loading}
+                >
+                  {loading ? (
+                    <span className="flex items-center gap-2">
+                      <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                      Loggin in...
+                    </span>
+                  ) : (
+                    "Log in"
+                  )}
+                </Button>
+              </form>
             </div>
 
-            <Button
-              type="submit"
-              className="w-full rounded-xl h-11"
-              disabled={loading}
-            >
-              {loading ? (
-                <span className="flex items-center gap-2">
-                  <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-                  Signing in...
-                </span>
-              ) : (
-                "Sign In"
-              )}
-            </Button>
-          </form>
-
-        </motion.div>
-
-        {/* Footer */}
-        <motion.div
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          transition={{ delay: 0.5 }}
-          className="text-center mt-6 text-sm text-muted-foreground w-full"
-        >
-          <p>© 2026 Students Research Lab. All rights reserved.</p>
-        </motion.div>
-        </motion.div>
-      </motion.div>
+            {/* Sub-card decorative footer area (similar to Instagram layout style) */}
+            <div className="text-center py-8">
+              <p className="text-[11px] text-teal-950/60 font-extrabold tracking-[0.05em] uppercase">
+                © 2026 Students Research Lab. All rights reserved.
+              </p>
+            </div>
+          </motion.div>
+        </div>
+      </div>
     </div>
   );
 }

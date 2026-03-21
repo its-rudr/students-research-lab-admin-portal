@@ -25,7 +25,7 @@ Run the production build in Docker:
 
 ```bash
 docker build -t srl-admin-portal .
-docker run -p 8080:80 srl-admin-portal
+docker run -p 5173:80 srl-admin-portal
 ```
 
 Or use Docker Compose:
@@ -34,4 +34,4 @@ Or use Docker Compose:
 docker compose up --build
 ```
 
-The app will be available at `http://localhost:8080`.
+The app will be available at `http://localhost:5173`.
