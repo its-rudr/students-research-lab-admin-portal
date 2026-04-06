@@ -37,7 +37,7 @@ export default function Scores() {
       .filter(([_, score]) => score !== "" && !isNaN(Number(score)))
       .map(([enroll_no, score]) => ({
         enrollment_no: enroll_no,
-        total_points: parseFloat(score),
+        points: parseFloat(score),
         date: addDate,
       }));
     if (rows.length === 0) {

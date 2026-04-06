@@ -9,6 +9,8 @@ import {
   ResponsiveContainer, PieChart, Pie, Cell, LineChart, Line,
 } from "recharts";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { getStoredUser } from "@/lib/auth";
+import { Sparkles, ArrowUpRight } from "lucide-react";
 
 interface LeaderboardEntry {
   name: string;
@@ -74,7 +76,15 @@ export default function Dashboard() {
   const [genderSemesters, setGenderSemesters] = useState<string[]>([]);
   const [selectedSemester, setSelectedSemester] = useState<string>("all");
   const [genderLoading, setGenderLoading] = useState(true);
+  
+  // Student specific metrics
+  const [userMonthlyAttendance, setUserMonthlyAttendance] = useState<number>(0);
+  const [userMonthlyScore, setUserMonthlyScore] = useState<number>(0);
+  const [userTotalScore, setUserTotalScore] = useState<number>(0);
+  const [userMetricsLoading, setUserMetricsLoading] = useState(false);
+
   const { toast } = useToast();
+  const user = getStoredUser();
   const today = new Date().toLocaleDateString("en-US", {
     weekday: "long",
     month: "short",
@@ -87,7 +97,10 @@ export default function Dashboard() {
     fetchTotalStudents();
     fetchGenderData();
     fetchPerformanceAnalytics();
-  }, []);
+    if (user?.role !== 'admin' && user?.enrollmentNo) {
+      fetchUserSpecificMetrics();
+    }
+  }, [user?.enrollmentNo]);
 
   useEffect(() => {
     if (!studentsCountLoading) {
@@ -193,6 +206,115 @@ export default function Dashboard() {
     }
   };
 
+  const fetchUserSpecificMetrics = async () => {
+    if (!user?.enrollmentNo) return;
+    try {
+      setUserMetricsLoading(true);
+      const enNo = String(user.enrollmentNo).trim().toLowerCase();
+      const now = new Date();
+      const currentMonth = now.getMonth() + 1;
+      const currentYear = now.getFullYear();
+
+      const cleanEnNo = enNo.replace(/[^a-z0-9]/g, '');
+
+      // 1. Fetch Scores
+      const { data: allScoresRaw, error: scoreError } = await supabase
+        .from("debate_scores")
+        .select("*");
+
+      if (scoreError) throw scoreError;
+
+      const userScores = (allScoresRaw || []).filter(s => {
+        const dbEnNoRaw = String(s.enrollment_no || s.enroll_no || s["enroll no."] || "").trim().toLowerCase();
+        const dbEnNoClean = dbEnNoRaw.replace(/[^a-z0-9]/g, '');
+        return dbEnNoClean === cleanEnNo || dbEnNoRaw === enNo;
+      });
+      
+      // Calculate Total Lifetime Score
+      const lifetime = userScores.reduce((sum, s) => {
+        const val = s.total_points || s.points || s.score || 0;
+        return sum + (typeof val === 'number' ? val : parseFloat(String(val)) || 0);
+      }, 0);
+      setUserTotalScore(lifetime);
+
+      // Calculate Monthly Score
+      const monthly = userScores.filter(s => {
+        const dateStr = String(s.date || s.Date || s.DATE || "").trim();
+        if (!dateStr) return false;
+        
+        try {
+          // Check for substring matches like "03/2026" or "2026-03" or "March" as a first pass
+          const monthPad = currentMonth < 10 ? `0${currentMonth}` : `${currentMonth}`;
+          if (dateStr.includes(`${monthPad}/${currentYear}`) || 
+              dateStr.includes(`${currentMonth}/${currentYear}`) ||
+              dateStr.includes(`${currentYear}-${monthPad}`) ||
+              dateStr.toLowerCase().includes("mar")) return true;
+
+          // Manual parts check
+          const parts = dateStr.split(/[\/\-\.]/);
+          if (parts.length >= 2) {
+             const m = parseInt(parts[1]);
+             const yStr = parts[parts.length-1];
+             const y = yStr.length === 2 ? 2000 + parseInt(yStr) : parseInt(yStr);
+             if (m === currentMonth && y === currentYear) return true;
+          }
+          
+          const d = new Date(dateStr);
+          return !isNaN(d.getTime()) && (d.getMonth() + 1 === currentMonth && d.getFullYear() === currentYear);
+        } catch { return false; }
+      }).reduce((sum, s) => {
+        const val = s.total_points || s.points || s.score || 0;
+        return sum + (typeof val === 'number' ? val : parseFloat(String(val)) || 0);
+      }, 0);
+      
+      setUserMonthlyScore(monthly);
+
+      // 2. Fetch Attendance
+      const { data: allAttRaw, error: attError } = await supabase
+        .from("attendance")
+        .select("*");
+
+      if (!attError && allAttRaw) {
+        const userAtt = allAttRaw.filter(a => {
+          const dbEnNoRaw = String(a.enrollment_no || a.enroll_no || a["enroll no."] || "").trim().toLowerCase();
+          const dbEnNoClean = dbEnNoRaw.replace(/[^a-z0-9]/g, '');
+          return dbEnNoClean === cleanEnNo || dbEnNoRaw === enNo;
+        });
+
+        const monthAtt = userAtt.filter(a => {
+          const dateStr = String(a.date || a.Date || a.DATE || "").trim();
+          if (!dateStr) return false;
+          const monthPad = currentMonth < 10 ? `0${currentMonth}` : `${currentMonth}`;
+          if (dateStr.includes(`${monthPad}/${currentYear}`) || dateStr.includes(`${currentMonth}/${currentYear}`)) return true;
+          
+          const d = new Date(dateStr);
+          return !isNaN(d.getTime()) && (d.getMonth() + 1 === currentMonth && d.getFullYear() === currentYear);
+        });
+        
+        const daysPassed = Math.max(1, now.getDate());
+        const presentDays = monthAtt.filter(a => {
+          const h = a.hours || a.Hours || a.HOURS || 0;
+          return (typeof h === 'number' ? h : parseFloat(String(h)) || 0) > 0;
+        }).length;
+        const attPercent = Math.min(100, Math.round((presentDays / daysPassed) * 100));
+        setUserMonthlyAttendance(attPercent);
+      }
+
+      console.log("METRIC_TRACE:", {
+        enNo,
+        cleanEnNo,
+        scoresFound: (allScoresRaw || []).length,
+        userScoresFound: userScores.length,
+        lifetime
+      });
+
+    } catch (error) {
+      console.error("Error fetching student metrics:", error);
+    } finally {
+      setUserMetricsLoading(false);
+    }
+  };
+
   const fetchLeaderboard = async () => {
     try {
       setLoading(true);
@@ -200,8 +322,8 @@ export default function Dashboard() {
       // Fetch top 5 from debate_scores table (only valid columns)
       const { data: leaderboardData, error: leaderboardError } = await supabase
         .from("debate_scores")
-        .select("enrollment_no, total_points")
-        .order("total_points", { ascending: false })
+        .select("enrollment_no, points")
+        .order("points", { ascending: false })
         .limit(5);
 
       if (leaderboardError) throw leaderboardError;
@@ -224,7 +346,7 @@ export default function Dashboard() {
         ...entry,
         name: studentsMap[entry.enrollment_no]?.student_name || "",
         field: studentsMap[entry.enrollment_no]?.field || "",
-        score: entry.total_points
+        score: entry.points
       })));
     } catch (error: any) {
       console.error("Error fetching leaderboard:", error);
@@ -266,7 +388,7 @@ export default function Dashboard() {
     try {
       setAnalyticsLoading(true);
       const [{ data: scoresData, error: scoresError }, { data: attendanceData, error: attError }, { data: studentsData, error: stuError }] = await Promise.all([
-        supabase.from("debate_scores").select("enrollment_no,total_points,date"),
+        supabase.from("debate_scores").select("enrollment_no,points,date"),
         supabase.from("attendance").select("enrollment_no,hours,date"),
         supabase.from("students_details").select("enrollment_no,student_name,member_type,field"),
       ]);
@@ -291,7 +413,7 @@ export default function Dashboard() {
       const scoreMap: Record<string, number> = {};
       (scoresData || []).forEach((row: any) => {
         const enrollNo = row.enrollment_no || "";
-        const points = Number(row.total_points) || 0;
+        const points = Number(row.points) || 0;
         if (enrollNo && visibleEnrollmentSet.has(enrollNo)) {
           scoreMap[enrollNo] = (scoreMap[enrollNo] || 0) + points;
         }
@@ -347,7 +469,7 @@ export default function Dashboard() {
         const date = row.date ? String(row.date) : "";
         const key = date.slice(0, 7);
         if (visibleEnrollmentSet.has(enrollNo) && trendMap[key]) {
-          trendMap[key].score += Number(row.total_points) || 0;
+          trendMap[key].score += Number(row.points) || 0;
         }
       });
 
@@ -384,9 +506,9 @@ export default function Dashboard() {
 
       const bands: ScoreBandEntry[] = [
         { name: "0-50", value: scoreBandCounts["0-50"], color: "#94a3b8" },
-        { name: "51-100", value: scoreBandCounts["51-100"], color: "#60a5fa" },
-        { name: "101-150", value: scoreBandCounts["101-150"], color: "#34d399" },
-        { name: "151+", value: scoreBandCounts["151+"], color: "#f59e0b" },
+        { name: "51-100", value: scoreBandCounts["51-100"], color: "#2dd4bf" },
+        { name: "101-150", value: scoreBandCounts["101-150"], color: "#0d9488" },
+        { name: "151+", value: scoreBandCounts["151+"], color: "#115e59" },
       ];
       setScoreBandChart(bands.filter((b) => b.value > 0));
 
@@ -449,8 +571,8 @@ export default function Dashboard() {
     const females = filtered.filter((r) => r.gender === "female" || r.gender === "f").length;
     const others = filtered.length - males - females;
     const result: GenderChartEntry[] = [];
-    if (males > 0) result.push({ name: "Male", value: males, color: "#6366f1" });
-    if (females > 0) result.push({ name: "Female", value: females, color: "#ec4899" });
+    if (males > 0) result.push({ name: "Male", value: males, color: "#0d9488" });
+    if (females > 0) result.push({ name: "Female", value: females, color: "#2dd4bf" });
     if (others > 0) result.push({ name: "Other", value: others, color: "#94a3b8" });
     return result;
   })();
@@ -469,34 +591,83 @@ export default function Dashboard() {
   };
 
   return (
-    <div className="space-y-4 sm:space-y-6 max-w-7xl">
+    <div className="space-y-6 sm:space-y-8 max-w-7xl animate-in fade-in duration-700">
+      {/* Welcome Banner */}
       <motion.div
-        initial={{ opacity: 0, y: 12 }}
+        initial={{ opacity: 0, y: 15 }}
         animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.4 }}
-        className="glass-card rounded-2xl p-5 sm:p-6"
+        transition={{ duration: 0.6 }}
+        className="relative overflow-hidden rounded-[2.5rem] bg-gradient-to-br from-[#ece5d4] to-[#d8ecea] border border-white/40 shadow-[var(--shadow-card)] p-8 sm:p-12"
       >
-        <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
-          <div>
-            <p className="text-xs uppercase tracking-[0.18em] text-primary/80 font-semibold">Overview</p>
-            <h2 className="text-xl sm:text-2xl font-semibold tracking-tight text-foreground mt-1">Research Lab Performance Snapshot</h2>
-            <p className="text-sm text-muted-foreground mt-1">{today} · Real-time visibility for members, activities, and outcomes</p>
+        <div className="absolute top-0 right-0 -mr-20 -mt-20 w-80 h-80 bg-green-500/10 rounded-full blur-[80px]" />
+        <div className="absolute bottom-0 left-0 -ml-20 -mb-20 w-64 h-64 bg-teal-500/10 rounded-full blur-[60px]" />
+        
+        <div className="relative z-10 flex flex-col md:flex-row md:items-center justify-between gap-8">
+          <div className="space-y-4">
+            <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-green-100 border border-green-200 text-[10px] font-bold tracking-[0.14em] uppercase text-green-700">
+              <Sparkles className="w-3.5 h-3.5" />
+              SRL Ecosystem
+            </div>
+            <h1 className="text-3xl sm:text-5xl font-extrabold tracking-tight leading-tight text-slate-900">
+              Welcome back,<br />
+              <span className="text-green-600">{user?.name?.split(' ')[0] || "Scholar"}!</span>
+              {user?.enrollmentNo && (
+                <div className="mt-2 space-y-1">
+                  <span className="block text-xs font-mono text-slate-400">ID: {user.enrollmentNo}</span>
+                  <span className="block text-[10px] text-slate-500">
+                    Trace: {userMonthlyAttendance}% | {userMonthlyScore} pts | {userTotalScore} tot (Matched: {(userTotalScore > 0 ? "YES" : "NO")})
+                  </span>
+                </div>
+              )}
+            </h1>
           </div>
-          <div className="grid grid-cols-2 gap-2 sm:gap-3 lg:w-[360px]">
-            <div className="rounded-xl border border-border/70 bg-background/70 px-3 py-2">
-              <p className="text-[11px] uppercase tracking-wide text-muted-foreground">Active Members</p>
-              <p className="text-lg font-semibold mt-0.5">{studentsCountLoading ? "..." : totalStudents}</p>
-            </div>
-            <div className="rounded-xl border border-border/70 bg-background/70 px-3 py-2">
-              <p className="text-[11px] uppercase tracking-wide text-muted-foreground">Attendance</p>
-              <p className="text-lg font-semibold mt-0.5">{attendanceLoading ? "..." : `${attendancePercent}%`}</p>
-            </div>
+          
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 lg:w-[600px]">
+            {user?.role === 'admin' ? (
+              <>
+                <div className="glass-card bg-white/60 border-green-100 p-6 rounded-[2rem] group transition-all duration-300 hover:bg-white hover:border-green-200">
+                  <p className="text-green-600 font-black text-3xl mb-1">{studentsCountLoading ? "..." : totalStudents}</p>
+                  <p className="text-[10px] uppercase tracking-widest text-green-700/60 font-bold flex items-center gap-1 group-hover:text-green-700 transition-colors">
+                    Active Members
+                    <ArrowUpRight className="w-3 h-3 transition-transform group-hover:translate-x-0.5 group-hover:-translate-y-0.5" />
+                  </p>
+                </div>
+                <div className="glass-card bg-white/60 border-green-100 p-6 rounded-[2rem] group transition-all duration-300 hover:bg-white hover:border-green-200">
+                  <p className="text-green-600 font-black text-3xl mb-1">{attendanceLoading ? "..." : `${attendancePercent}%`}</p>
+                  <p className="text-[10px] uppercase tracking-widest text-green-700/60 font-bold flex items-center gap-1 group-hover:text-green-700 transition-colors">
+                    Avg. Attendance
+                    <ArrowUpRight className="w-3 h-3 transition-transform group-hover:translate-x-0.5 group-hover:-translate-y-0.5" />
+                  </p>
+                </div>
+              </>
+            ) : (
+              <>
+                <div className="glass-card bg-white/60 border-green-100 p-5 rounded-[2rem] group transition-all duration-300 hover:bg-white hover:border-green-200">
+                  <p className="text-green-600 font-black text-2xl mb-1">{userMetricsLoading ? "..." : `${userMonthlyAttendance}%`}</p>
+                  <p className="text-[10px] uppercase tracking-widest text-green-700/60 font-bold flex items-center gap-1 group-hover:text-green-700 transition-colors">
+                    Monthly Att.
+                  </p>
+                </div>
+                <div className="glass-card bg-white/60 border-green-100 p-5 rounded-[2rem] group transition-all duration-300 hover:bg-white hover:border-green-200">
+                  <p className="text-green-600 font-black text-2xl mb-1">{userMetricsLoading ? "..." : userMonthlyScore}</p>
+                  <p className="text-[10px] uppercase tracking-widest text-green-700/60 font-bold flex items-center gap-1 group-hover:text-green-700 transition-colors">
+                    Monthly Score
+                  </p>
+                </div>
+                <div className="glass-card bg-white/60 border-green-100 p-5 rounded-[2rem] group transition-all duration-300 hover:bg-white hover:border-green-200">
+                  <p className="text-green-600 font-black text-2xl mb-1">{userMetricsLoading ? "..." : userTotalScore}</p>
+                  <p className="text-[10px] uppercase tracking-widest text-green-700/60 font-bold flex items-center gap-1 group-hover:text-green-700 transition-colors">
+                    Total Score
+                  </p>
+                </div>
+              </>
+            )}
           </div>
         </div>
       </motion.div>
 
       {/* Stats Grid */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6 sm:gap-8">
         <StatCard
           icon={Users}
           title="Total Students"
@@ -514,7 +685,7 @@ export default function Dashboard() {
         <StatCard icon={BookOpen} title="Research Papers" value={24} subtitle="6 pending review" delay={0.1} />
       </div>
 
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6 sm:gap-8">
         <StatCard
           icon={TrendingUp}
           title="Avg Score / Student"
@@ -539,7 +710,7 @@ export default function Dashboard() {
       </div>
 
       {/* Two column layout */}
-      <div className="grid grid-cols-1 lg:grid-cols-5 gap-3 sm:gap-4">
+      <div className="grid grid-cols-1 lg:grid-cols-5 gap-6 sm:gap-8">
         {/* Leaderboard */}
         <motion.div
           initial={{ opacity: 0, y: 12 }}
@@ -547,12 +718,16 @@ export default function Dashboard() {
           transition={{ delay: 0.2, duration: 0.4 }}
           className="glass-card rounded-2xl p-5 lg:col-span-3"
         >
-          <div className="flex items-center justify-between mb-4">
-            <h2 className="section-title flex items-center gap-2">
-              <Trophy className="w-4 h-4 text-primary" />
-              Score Leaderboard
-            </h2>
-            <span className="text-xs font-medium text-muted-foreground">Top 5</span>
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-10">
+            <div>
+              <h2 className="text-xl font-black text-foreground flex items-center gap-3">
+                <div className="w-10 h-10 rounded-[1rem] bg-amber-50 border border-amber-100 flex items-center justify-center">
+                  <Trophy className="w-5 h-5 text-amber-600" />
+                </div>
+                Score Leaderboard
+              </h2>
+              <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-[0.14em] mt-1.5 ml-12">Top Performers this month</p>
+            </div>
           </div>
           {loading ? (
             <div className="flex items-center justify-center py-12">
@@ -563,25 +738,33 @@ export default function Dashboard() {
               No scores available yet
             </div>
           ) : (
-            <div className="space-y-2">
+            <div className="space-y-4">
               {leaderboard.map((student, i) => (
                 <motion.div
                   key={student.enrollment_no}
-                  initial={{ opacity: 0, x: -8 }}
+                  initial={{ opacity: 0, x: -12 }}
                   animate={{ opacity: 1, x: 0 }}
                   transition={{ delay: 0.25 + i * 0.05 }}
-                  className="flex items-center gap-3 p-3 rounded-xl hover:bg-muted/50 transition-colors"
+                  className="flex items-center gap-4 p-5 rounded-[2rem] bg-background border border-border group hover:bg-white hover:shadow-xl hover:shadow-primary/5 transition-all duration-300"
                 >
-                  <span className="w-6 h-6 flex items-center justify-center rounded-lg bg-primary/8 text-xs font-semibold text-primary">
+                  <div className={`w-12 h-12 flex items-center justify-center rounded-2xl text-sm font-black shadow-inner ${
+                    i === 0 ? 'bg-amber-50 text-amber-600 border border-amber-100' : 
+                    i === 1 ? 'bg-slate-100/50 text-slate-500 border border-slate-200/50' : 
+                    i === 2 ? 'bg-orange-50 text-orange-600 border border-orange-100' : 
+                    'bg-slate-50 text-muted-foreground border border-slate-100'
+                  }`}>
                     {i + 1}
-                  </span>
-                  <div className="flex-1 min-w-0">
-                    <p className="text-sm font-medium text-foreground truncate">{student.name}</p>
-                    <p className="text-xs text-muted-foreground">{student.field}</p>
                   </div>
-                  <div className="flex items-center gap-1.5">
-                    <span className="font-mono text-sm font-semibold text-foreground">{student.score}</span>
-                    <TrendingUp className="w-3.5 h-3.5 text-success" />
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-extrabold text-foreground truncate group-hover:text-primary transition-colors">{student.name}</p>
+                    <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-[0.12em] mt-0.5">{student.field}</p>
+                  </div>
+                  <div className="flex flex-col items-end">
+                    <span className="font-mono text-sm font-black text-foreground">{student.score}</span>
+                    <div className="flex items-center gap-1 text-[10px] font-bold text-primary">
+                      <TrendingUp className="w-3 h-3" />
+                      TOP {i + 1}
+                    </div>
                   </div>
                 </motion.div>
               ))}
@@ -596,10 +779,15 @@ export default function Dashboard() {
           transition={{ delay: 0.25, duration: 0.4 }}
           className="glass-card rounded-2xl p-5 lg:col-span-2"
         >
-          <h2 className="section-title flex items-center gap-2 mb-4">
-            <Calendar className="w-4 h-4 text-primary" />
-            Recent Activities
-          </h2>
+          <div className="mb-10">
+            <h2 className="text-xl font-black text-foreground flex items-center gap-3">
+              <div className="w-10 h-10 rounded-[1rem] bg-primary/5 border border-primary/10 flex items-center justify-center">
+                <Calendar className="w-5 h-5 text-primary" />
+              </div>
+              Recent Activities
+            </h2>
+            <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-[0.14em] mt-1.5 ml-12">Latest lab updates</p>
+          </div>
           {activitiesLoading ? (
             <div className="flex items-center justify-center py-8">
               <Loader2 className="w-5 h-5 animate-spin text-primary" />
@@ -609,21 +797,20 @@ export default function Dashboard() {
               No activities yet
             </div>
           ) : (
-            <div className="space-y-3">
+            <div className="space-y-6">
               {activities.map((activity, i) => (
                 <motion.div
                   key={activity.id}
-                  initial={{ opacity: 0, x: 8 }}
+                  initial={{ opacity: 0, x: 12 }}
                   animate={{ opacity: 1, x: 0 }}
                   transition={{ delay: 0.3 + i * 0.05 }}
-                  className="flex items-start gap-3"
+                  className="relative pl-7 border-l-2 border-border hover:border-primary transition-colors duration-500"
                 >
-                  <div className="w-1.5 h-1.5 rounded-full bg-primary mt-2 shrink-0" />
-                  <div className="min-w-0 flex-1">
-                    <p className="text-sm font-medium text-foreground">{activity.title}</p>
-                    {/* Date removed as requested */}
+                  <div className="absolute -left-[6px] top-1 w-2.5 h-2.5 rounded-full bg-border border-2 border-white group-hover:bg-primary transition-colors" />
+                  <div className="min-w-0 flex-1 group">
+                    <p className="text-sm font-extrabold text-foreground group-hover:text-primary transition-colors">{activity.title}</p>
                     {activity.description && (
-                      <p className="text-xs text-muted-foreground mt-1 line-clamp-2">
+                      <p className="text-xs font-semibold text-muted-foreground/80 mt-2 line-clamp-2 leading-relaxed">
                         {activity.description}
                       </p>
                     )}
@@ -636,7 +823,7 @@ export default function Dashboard() {
       </div>
 
       {/* Charts Row */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-3 sm:gap-4">
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 sm:gap-8">
         {/* Bar Chart - Top 5 by Score */}
         <motion.div
           initial={{ opacity: 0, y: 12 }}
@@ -644,12 +831,14 @@ export default function Dashboard() {
           transition={{ delay: 0.35, duration: 0.4 }}
           className="glass-card rounded-2xl p-5"
         >
-          <div className="flex items-center justify-between mb-4">
-            <h2 className="section-title flex items-center gap-2">
-              <BarChart2 className="w-4 h-4 text-primary" />
-              Top 5
-            </h2>
-            <span className="text-xs font-medium text-muted-foreground">Total Points</span>
+          <div className="flex items-center justify-between mb-10">
+            <div>
+              <h2 className="text-lg font-black text-foreground flex items-center gap-3">
+                <BarChart2 className="w-5 h-5 text-primary" />
+                Performance Rank
+              </h2>
+              <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-[0.14em] mt-1 ml-8">Total cumulative points</p>
+            </div>
           </div>
           {analyticsLoading ? (
             <div className="flex items-center justify-center py-10">
@@ -678,7 +867,7 @@ export default function Dashboard() {
                   }}
                 />
                 <Legend wrapperStyle={{ fontSize: 12 }} />
-                <Bar dataKey="score" name="Score" fill="#4f46e5" radius={[6, 6, 0, 0]} maxBarSize={36} />
+                <Bar dataKey="score" name="Score" fill="#0d9488" radius={[6, 6, 0, 0]} maxBarSize={36} />
               </BarChart>
             </ResponsiveContainer>
           )}
@@ -691,12 +880,14 @@ export default function Dashboard() {
           transition={{ delay: 0.38, duration: 0.4 }}
           className="glass-card rounded-2xl p-5"
         >
-          <div className="flex items-center justify-between mb-4">
-            <h2 className="section-title flex items-center gap-2">
-              <CalendarCheck className="w-4 h-4 text-primary" />
-              Top 5 by Attendance
-            </h2>
-            <span className="text-xs font-medium text-muted-foreground">Hours</span>
+          <div className="flex items-center justify-between mb-10">
+            <div>
+              <h2 className="text-lg font-black text-foreground flex items-center gap-3">
+                <CalendarCheck className="w-5 h-5 text-primary" />
+                Attendance Leader
+              </h2>
+              <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-[0.14em] mt-1 ml-8">Most active this month</p>
+            </div>
           </div>
           {analyticsLoading ? (
             <div className="flex items-center justify-center py-10">
@@ -724,7 +915,7 @@ export default function Dashboard() {
                     fontSize: 12,
                   }}
                 />
-                <Bar dataKey="hours" name="Hours" fill="#059669" radius={[6, 6, 0, 0]} maxBarSize={36} />
+                <Bar dataKey="hours" name="Hours" fill="#115e59" radius={[6, 6, 0, 0]} maxBarSize={36} />
               </BarChart>
             </ResponsiveContainer>
           )}
@@ -737,12 +928,14 @@ export default function Dashboard() {
           transition={{ delay: 0.4, duration: 0.4 }}
           className="glass-card rounded-2xl p-5"
         >
-          <div className="flex items-center justify-between mb-4">
-            <h2 className="section-title flex items-center gap-2">
-              <TrendingUp className="w-4 h-4 text-primary" />
-              6-Month Trend
-            </h2>
-            <span className="text-xs font-medium text-muted-foreground">Scores vs Hours</span>
+          <div className="flex items-center justify-between mb-10">
+            <div>
+              <h2 className="text-lg font-black text-foreground flex items-center gap-3">
+                <TrendingUp className="w-5 h-5 text-primary" />
+                Growth Velocity
+              </h2>
+              <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-[0.14em] mt-1 ml-8">Score & hours progress</p>
+            </div>
           </div>
           {analyticsLoading ? (
             <div className="flex items-center justify-center py-10">
@@ -765,8 +958,8 @@ export default function Dashboard() {
                   }}
                 />
                 <Legend wrapperStyle={{ fontSize: 12 }} />
-                <Line type="monotone" dataKey="score" name="Score" stroke="#4f46e5" strokeWidth={2.2} dot={{ r: 3 }} />
-                <Line type="monotone" dataKey="hours" name="Hours" stroke="#059669" strokeWidth={2.2} dot={{ r: 3 }} />
+                <Line type="monotone" dataKey="score" name="Score" stroke="#0d9488" strokeWidth={2.2} dot={{ r: 3 }} />
+                <Line type="monotone" dataKey="hours" name="Hours" stroke="#115e59" strokeWidth={2.2} dot={{ r: 3 }} />
               </LineChart>
             </ResponsiveContainer>
           )}
@@ -779,12 +972,14 @@ export default function Dashboard() {
           transition={{ delay: 0.43, duration: 0.4 }}
           className="glass-card rounded-2xl p-5"
         >
-          <div className="flex items-center justify-between mb-4">
-            <h2 className="section-title flex items-center gap-2">
-              <PieIcon className="w-4 h-4 text-primary" />
-              Score Distribution
-            </h2>
-            <span className="text-xs font-medium text-muted-foreground">Student Bands</span>
+          <div className="flex items-center justify-between mb-10">
+            <div>
+              <h2 className="text-lg font-black text-foreground flex items-center gap-3">
+                <PieIcon className="w-5 h-5 text-primary" />
+                Score Distribution
+              </h2>
+              <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-[0.14em] mt-1 ml-8">Talent segmentation</p>
+            </div>
           </div>
           {analyticsLoading ? (
             <div className="flex items-center justify-center py-10">
@@ -840,20 +1035,23 @@ export default function Dashboard() {
           transition={{ delay: 0.4, duration: 0.4 }}
           className="glass-card rounded-2xl p-5"
         >
-          <div className="flex items-center justify-between mb-4">
-            <h2 className="section-title flex items-center gap-2">
-              <PieIcon className="w-4 h-4 text-primary" />
-              Gender Ratio
-            </h2>
+          <div className="flex items-center justify-between mb-10">
+            <div>
+              <h2 className="text-lg font-black text-foreground flex items-center gap-3">
+                <PieIcon className="w-5 h-5 text-primary" />
+                Demographics
+              </h2>
+              <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-[0.14em] mt-1 ml-8">Gender balance ratio</p>
+            </div>
             <Select value={selectedSemester} onValueChange={setSelectedSemester}>
-              <SelectTrigger className="w-32 h-7 text-xs">
+              <SelectTrigger className="w-32 h-9 rounded-xl border-border bg-background text-[10px] font-bold uppercase tracking-[0.1em]">
                 <SelectValue placeholder="Semester" />
               </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">All Semesters</SelectItem>
+              <SelectContent className="rounded-2xl border-border">
+                <SelectItem value="all" className="text-xs font-semibold">ALL SEMESTERS</SelectItem>
                 {genderSemesters.map((sem) => (
-                  <SelectItem key={sem} value={sem}>
-                    Sem {sem}
+                  <SelectItem key={sem} value={sem} className="text-xs font-semibold">
+                    SEMESTER {sem}
                   </SelectItem>
                 ))}
               </SelectContent>

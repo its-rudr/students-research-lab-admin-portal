@@ -79,7 +79,7 @@ export default function AdminLayout() {
   const handleLogout = async () => {
     try {
       clearSession();
-      
+
       toast({
         title: "Logged out",
         description: "Session cleared successfully.",
@@ -127,8 +127,12 @@ export default function AdminLayout() {
                 exit={{ opacity: 0, width: 0 }}
                 className="overflow-hidden whitespace-nowrap"
               >
-                <span className="text-sm font-semibold text-foreground">SRL Admin</span>
-                <span className="block text-[10px] text-muted-foreground font-medium">MMPSRPC, KSV</span>
+                <span className="text-sm font-bold text-foreground leading-tight block truncate max-w-[160px]">
+                  {user?.role === "admin" ? "SRL Admin" : user?.name || "SRL Student"}
+                </span>
+                <span className="block text-[10px] text-muted-foreground font-semibold tracking-wider uppercase">
+                  {user?.role === "admin" ? "MMPSRPC, KSV" : "SRL Student Member"}
+                </span>
               </motion.div>
             )}
           </AnimatePresence>
@@ -193,7 +197,7 @@ export default function AdminLayout() {
                 <h1 className="page-title text-base sm:text-lg truncate">{currentPage}</h1>
                 <span className="hidden md:inline-flex items-center rounded-full border border-primary/15 bg-primary/8 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-[0.14em] text-primary">Live</span>
               </div>
-              <p className="text-[11px] sm:text-xs text-muted-foreground/90 truncate font-medium tracking-[0.08em] uppercase">Student Research Lab</p>
+              <p className="text-[11px] sm:text-xs text-muted-foreground/90 truncate font-medium tracking-[0.08em] uppercase">Students Research Lab</p>
             </div>
           </div>
 
@@ -205,20 +209,6 @@ export default function AdminLayout() {
               <Bell className="w-4 h-4 sm:w-[18px] sm:h-[18px]" />
               <span className="absolute top-2 right-2 w-2 h-2 bg-primary rounded-full" />
             </Button>
-            <div className="w-px h-5 bg-border hidden sm:block" />
-            <div className="hidden sm:flex items-center gap-2.5">
-              <Avatar className="w-8 h-8">
-                <AvatarFallback className="bg-primary/10 text-primary text-xs font-semibold">
-                  {user?.name?.slice(0, 2).toUpperCase() || "US"}
-                </AvatarFallback>
-              </Avatar>
-              <AnimatePresence>
-                <div className="hidden sm:block">
-                  <p className="text-sm font-medium text-foreground leading-tight">{user?.name || "User"}</p>
-                  <p className="text-[11px] text-muted-foreground leading-tight capitalize">{user?.role || "member"}</p>
-                </div>
-              </AnimatePresence>
-            </div>
             <Button
               variant="ghost"
               size="icon"

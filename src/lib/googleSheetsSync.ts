@@ -6,7 +6,7 @@
  */
 
 import { supabase } from './supabaseClient';
-import { fetchGoogleSheetData, fetchMultipleRanges } from './googleSheetsService';
+import { fetchGoogleSheetData } from './googleSheetsService';
 
 export interface SyncResult {
   success: boolean;
@@ -36,7 +36,6 @@ export const SYNC_CONFIGS: SheetConfig[] = [
     uniqueKey: 'enrollment_no',
     clearBeforeSync: false,
     columnMapping: {
-      // Google Sheets column → Supabase column
       'Name': 'student_name',
       'Enrollment No': 'enrollment_no',
       'Email': 'email',
@@ -57,7 +56,7 @@ export const SYNC_CONFIGS: SheetConfig[] = [
     clearBeforeSync: false,
     columnMapping: {
       'Enrollment No': 'enrollment_no',
-      'Points': 'total_points',
+      'Points': 'points',
       'Date': 'date',
     },
   },
@@ -122,16 +121,39 @@ function transformSheetData(
 /**
  * Sync a single sheet to Supabase table
  */
-/*
 export async function syncSheetToTable(config: SheetConfig): Promise<SyncResult> {
   const result: SyncResult = {
     success: false,
     table: config.supabaseTable,
-      }
-      result.deleted = 1; // Indicate deletion occurred
+    inserted: 0,
+    updated: 0,
+    deleted: 0,
+    errors: [],
+  };
+
+  try {
+    const sheetData = await fetchGoogleSheetData(config.sheetRange, true);
+    
+    if (!sheetData || sheetData.length === 0) {
+      result.errors.push(`No data found in sheet: ${config.sheetRange}`);
+      return result;
     }
 
-    // Upsert data (insert or update based on unique key)
+    const transformedData = transformSheetData(sheetData, config.columnMapping);
+
+    if (config.clearBeforeSync) {
+      const { error: deleteError } = await supabase
+        .from(config.supabaseTable)
+        .delete()
+        .neq('id', -1);
+      
+      if (deleteError) {
+        result.errors.push(`Delete error: ${deleteError.message}`);
+        return result;
+      }
+      result.deleted = 1;
+    }
+
     const { data, error } = await supabase
       .from(config.supabaseTable)
       .upsert(transformedData, {
@@ -182,62 +204,4 @@ export async function syncSpecificSheets(tableNames: string[]): Promise<SyncResu
   }
 
   return results;
-}
-
-/**
- * Get sync status for all configured sheets
- */
-export async function getSyncStatus(): Promise<{
-  lastSync: Date | null;
-  configs: SheetConfig[];
-  connected: boolean;
-}> {
-  try {
-    // Test connection
-    const { error } = await supabase.from('students_details').select('id').limit(1);
-    
-    return {
-      lastSync: null, // Could be stored in a metadata table
-      configs: SYNC_CONFIGS,
-      connected: !error,
-    };
-  } catch (error) {
-    return {
-      lastSync: null,
-      configs: SYNC_CONFIGS,
-      connected: false,
-    };
-  }
-}
-
-/**
- * Validate sheet structure matches expected columns
- */
-export async function validateSheetStructure(
-  sheetRange: string,
-  expectedColumns: string[]
-): Promise<{ valid: boolean; missingColumns: string[]; extraColumns: string[] }> {
-  try {
-    const data = await fetchGoogleSheetData(sheetRange, true);
-    
-    if (!data || data.length === 0) {
-      return { valid: false, missingColumns: expectedColumns, extraColumns: [] };
-    }
-
-    const actualColumns = Object.keys(data[0]);
-    const missingColumns = expectedColumns.filter((col) => !actualColumns.includes(col));
-    const extraColumns = actualColumns.filter((col) => !expectedColumns.includes(col));
-
-    return {
-      valid: missingColumns.length === 0,
-      missingColumns,
-      extraColumns,
-    };
-  } catch (error) {
-    return {
-      valid: false,
-      missingColumns: expectedColumns,
-      extraColumns: [],
-    };
-  }
 }
