@@ -154,30 +154,31 @@ export default function Students() {
             <Filter className="w-3.5 h-3.5" />
             Filters
           </Button>
-          <Dialog open={open} onOpenChange={setOpen}>
-            <DialogTrigger asChild>
-              <Button size="sm" className="rounded-xl gap-1.5" disabled={!canEdit}>
-                <Plus className="w-3.5 h-3.5" />
-                Add Student
-              </Button>
-            </DialogTrigger>
-            <DialogContent className="rounded-2xl sm:max-w-md max-h-[85vh] overflow-y-auto">
-              <DialogHeader>
-                <DialogTitle>Add New Student</DialogTitle>
-              </DialogHeader>
-              <div className="space-y-4 pt-2">
-                <div className="space-y-1.5">
-                  <Label>Student Name</Label>
-                  <Input 
-                    placeholder="Enter student name" 
-                    className="rounded-xl"
-                    value={formData.student_name}
-                    onChange={(e) => setFormData({ ...formData, student_name: e.target.value })}
-                  />
-                </div>
-                <div className="space-y-1.5">
-                  <Label>Enrollment Number</Label>
-                  <Input 
+          {canEdit && (
+            <Dialog open={open} onOpenChange={setOpen}>
+              <DialogTrigger asChild>
+                <Button size="sm" className="rounded-xl gap-1.5">
+                  <Plus className="w-3.5 h-3.5" />
+                  Add Student
+                </Button>
+              </DialogTrigger>
+              <DialogContent className="rounded-2xl sm:max-w-md max-h-[85vh] overflow-y-auto">
+                <DialogHeader>
+                  <DialogTitle>Add New Student</DialogTitle>
+                </DialogHeader>
+                <div className="space-y-4 pt-2">
+                  <div className="space-y-1.5">
+                    <Label>Student Name</Label>
+                    <Input 
+                      placeholder="Enter student name" 
+                      className="rounded-xl"
+                      value={formData.student_name}
+                      onChange={(e) => setFormData({ ...formData, student_name: e.target.value })}
+                    />
+                  </div>
+                  <div className="space-y-1.5">
+                    <Label>Enrollment Number</Label>
+                    <Input
                     placeholder="e.g. 2024CS001" 
                     className="rounded-xl"
                     value={formData.enrollment_no}
@@ -283,6 +284,7 @@ export default function Students() {
               </div>
             </DialogContent>
           </Dialog>
+          )}
         </div>
       </div>
       {!canEdit && <p className="text-xs text-muted-foreground">You have read-only access. Only admin can add students.</p>}

@@ -126,9 +126,11 @@ export default function Attendance() {
   return (
     <div className="space-y-4 sm:space-y-5 max-w-7xl">
       <div className="flex justify-start sm:justify-end">
-        <Button onClick={() => setShowAddForm((v) => !v)} variant="default" className="text-sm sm:text-base" disabled={!canEdit}>
-          {showAddForm ? "Cancel" : "Add Attendance"}
-        </Button>
+        {canEdit && (
+          <Button onClick={() => setShowAddForm((v) => !v)} variant="default" className="text-sm sm:text-base">
+            {showAddForm ? "Cancel" : "Add Attendance"}
+          </Button>
+        )}
       </div>
       {!canEdit && <p className="text-xs text-muted-foreground">You have read-only access. Only admin can add attendance.</p>}
       {showAddForm && (

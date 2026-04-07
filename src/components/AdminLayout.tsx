@@ -70,10 +70,12 @@ export default function AdminLayout() {
   });
 
   // Close sidebar on mobile when route changes
+  // Only auto-close sidebar on mobile when route changes
   useEffect(() => {
     if (window.innerWidth < 1024) {
       setSidebarOpen(false);
     }
+    // On desktop, do not auto-close sidebar
   }, [location.pathname]);
 
   const handleLogout = async () => {
