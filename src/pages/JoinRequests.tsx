@@ -3,6 +3,8 @@ import { supabase } from "@/lib/supabaseClient";
 import { useToast } from "@/hooks/use-toast";
 import { Button } from "@/components/ui/button";
 import { Loader2, Download } from "lucide-react";
+import { Navigate } from "react-router-dom";
+import { hasWriteAccess } from "@/lib/auth";
 // Excel and PDF export
 import * as XLSX from "xlsx";
 import jsPDF from "jspdf";
@@ -28,10 +30,16 @@ export default function JoinRequests() {
   const [rows, setRows] = useState<JoinUsRow[]>([]);
   const [loading, setLoading] = useState(true);
   const { toast } = useToast();
+  const canAccess = hasWriteAccess();
 
   useEffect(() => {
+    if (!canAccess) return;
     fetchRows();
-  }, []);
+  }, [canAccess]);
+
+  if (!canAccess) {
+    return <Navigate to="/" replace />;
+  }
 
   const fetchRows = async () => {
     setLoading(true);

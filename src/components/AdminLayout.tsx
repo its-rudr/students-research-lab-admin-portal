@@ -155,7 +155,9 @@ export default function AdminLayout() {
 
         {/* Nav Items */}
         <nav className="flex-1 px-3 py-4 space-y-1 overflow-y-auto">
-          {navItems.map((item) => (
+          {navItems
+            .filter((item) => item.path !== "/join-requests" || user?.role === "admin")
+            .map((item) => (
             <NavLink
               key={item.path}
               to={item.path}

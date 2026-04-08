@@ -18,6 +18,7 @@ import Login from "@/pages/Login";
 import GoogleSheetData from "@/pages/GoogleSheetData";
 import SheetSync from "@/pages/SheetSync";
 import NotFound from "./pages/NotFound";
+import { hasWriteAccess } from "@/lib/auth";
 
 const queryClient = new QueryClient();
 
@@ -39,7 +40,10 @@ const App = () => {
                 <Route path="/scores" element={<Scores />} />
                 <Route path="/activities" element={<Activities />} />
                 <Route path="/timeline" element={<Timeline />} />
-                <Route path="/join-requests" element={<JoinRequests />} />
+                <Route
+                  path="/join-requests"
+                  element={hasWriteAccess() ? <JoinRequests /> : <Navigate to="/" replace />}
+                />
                 <Route path="/member-cv" element={<MemberCV />} />
                 <Route path="/google-sheets" element={<GoogleSheetData />} />
                 <Route path="/sheet-sync" element={<SheetSync />} />
