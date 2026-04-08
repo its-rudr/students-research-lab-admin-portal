@@ -82,6 +82,7 @@ export default function Dashboard() {
   const [userMonthlyScore, setUserMonthlyScore] = useState<number>(0);
   const [userTotalScore, setUserTotalScore] = useState<number>(0);
   const [userMetricsLoading, setUserMetricsLoading] = useState(false);
+  const [welcomeName, setWelcomeName] = useState<string>("");
 
   const { toast } = useToast();
   const user = getStoredUser();
@@ -97,10 +98,11 @@ export default function Dashboard() {
     fetchTotalStudents();
     fetchGenderData();
     fetchPerformanceAnalytics();
+    fetchWelcomeName();
     if (user?.role !== 'admin' && user?.enrollmentNo) {
       fetchUserSpecificMetrics();
     }
-  }, [user?.enrollmentNo]);
+  }, [user?.email, user?.enrollmentNo]);
 
   useEffect(() => {
     if (!studentsCountLoading) {
@@ -315,39 +317,160 @@ export default function Dashboard() {
     }
   };
 
+  const fetchWelcomeName = async () => {
+    if (user?.role === "admin") {
+      setWelcomeName("Admin");
+      return;
+    }
+
+    if (!user?.email) {
+      setWelcomeName("");
+      return;
+    }
+
+    try {
+      const normalizedEmail = String(user.email).trim().toLowerCase();
+      const { data, error } = await supabase
+        .from("students_details")
+        .select("student_name")
+        .eq("email", normalizedEmail)
+        .limit(1);
+
+      if (error) throw error;
+
+      const studentName = String(data?.[0]?.student_name || "").trim();
+      setWelcomeName(studentName);
+    } catch {
+      setWelcomeName("");
+    }
+  };
+
   const fetchLeaderboard = async () => {
     try {
       setLoading(true);
-      
-      // Fetch top 5 from debate_scores table (only valid columns)
-      const { data: leaderboardData, error: leaderboardError } = await supabase
-        .from("debate_scores")
-        .select("enrollment_no, points")
-        .order("points", { ascending: false })
-        .limit(5);
 
-      if (leaderboardError) throw leaderboardError;
+      const [{ data: statsData, error: statsError }, { data: studentsData, error: studentsError }] = await Promise.all([
+        supabase.from("leaderboard_stats").select("*"),
+        supabase.from("students_details").select("enrollment_no,student_name,member_type"),
+      ]);
 
-      // Fetch student details for these enrollments
-      const enrollmentNos = (leaderboardData || []).map(e => e.enrollment_no).filter(Boolean);
-      let studentsMap = {};
-      if (enrollmentNos.length > 0) {
-        const { data: students, error: studentsError } = await supabase
-          .from("students_details")
-          .select("enrollment_no, student_name, field")
-          .in("enrollment_no", enrollmentNos);
-        if (!studentsError && students) {
-          studentsMap = Object.fromEntries(students.map(s => [s.enrollment_no, s]));
+      if (statsError) throw statsError;
+      if (studentsError) throw studentsError;
+
+      const now = new Date();
+      const currentMonth = now.getMonth() + 1;
+      const currentYear = now.getFullYear();
+      const monthPad = String(currentMonth).padStart(2, "0");
+
+      const isCurrentMonthByDateValue = (value: any) => {
+        const dateStr = String(value || "").trim();
+        if (!dateStr) return false;
+
+        if (
+          dateStr.includes(`${currentYear}-${monthPad}`) ||
+          dateStr.includes(`${monthPad}/${currentYear}`) ||
+          dateStr.includes(`${currentMonth}/${currentYear}`)
+        ) {
+          return true;
         }
-      }
 
-      // Merge data for leaderboard
-      setLeaderboard((leaderboardData || []).map(entry => ({
-        ...entry,
-        name: studentsMap[entry.enrollment_no]?.student_name || "",
-        field: studentsMap[entry.enrollment_no]?.field || "",
-        score: entry.points
-      })));
+        const parts = dateStr.split(/[\/\-.]/);
+        if (parts.length >= 3) {
+          const m = Number.parseInt(parts[1], 10);
+          const yRaw = parts[parts.length - 1];
+          const y = yRaw.length === 2 ? 2000 + Number.parseInt(yRaw, 10) : Number.parseInt(yRaw, 10);
+          if (!Number.isNaN(m) && !Number.isNaN(y) && m === currentMonth && y === currentYear) {
+            return true;
+          }
+        }
+
+        const parsed = new Date(dateStr);
+        return !Number.isNaN(parsed.getTime()) && parsed.getMonth() + 1 === currentMonth && parsed.getFullYear() === currentYear;
+      };
+
+      const isCurrentMonthRow = (row: any) => {
+        if (isCurrentMonthByDateValue(row.date || row.Date || row.DATE || row.created_at || row.updated_at)) {
+          return true;
+        }
+
+        if (isCurrentMonthByDateValue(row.period)) {
+          return true;
+        }
+
+        const monthValue = row.month ?? row.month_name ?? row.month_label ?? row.month_no ?? row.period;
+        const yearValue = row.year ?? row.year_no;
+
+        if (monthValue != null && yearValue != null) {
+          const yearNum = Number.parseInt(String(yearValue), 10);
+          const monthRaw = String(monthValue).trim().toLowerCase();
+          const monthNum = Number.parseInt(monthRaw, 10);
+
+          if (!Number.isNaN(monthNum) && !Number.isNaN(yearNum)) {
+            return monthNum === currentMonth && yearNum === currentYear;
+          }
+
+          const monthNames = [
+            "january", "february", "march", "april", "may", "june",
+            "july", "august", "september", "october", "november", "december",
+          ];
+          const monthShort = monthNames[currentMonth - 1]?.slice(0, 3);
+          if (!Number.isNaN(yearNum) && monthShort) {
+            return yearNum === currentYear && (monthRaw === monthNames[currentMonth - 1] || monthRaw === monthShort);
+          }
+        }
+
+        return false;
+      };
+
+      const visibleStudents = (studentsData || []).filter(
+        (student: any) => String(student.member_type || "member").toLowerCase() !== "admin"
+      );
+
+      const visibleEnrollmentSet = new Set(
+        visibleStudents.map((student: any) => String(student.enrollment_no || "").trim()).filter(Boolean)
+      );
+
+      const nameMap: Record<string, string> = {};
+      const fieldMap: Record<string, string> = {};
+      visibleStudents.forEach((student: any) => {
+        const en = String(student.enrollment_no || "").trim();
+        if (!en) return;
+        nameMap[en] = String(student.student_name || "").trim();
+        fieldMap[en] = String(student.field || "").trim();
+      });
+
+      const scoreMap: Record<string, number> = {};
+      (statsData || []).forEach((row: any) => {
+        if (!isCurrentMonthRow(row)) return;
+
+        const enrollment_no = String(row.enrollment_no || row.enroll_no || row["enroll no."] || "").trim();
+        if (!enrollment_no || !visibleEnrollmentSet.has(enrollment_no)) return;
+
+        const scoreValue =
+          row.monthly_points ??
+          row.month_points ??
+          row.monthly_score ??
+          row.debate_score ??
+          row.total_points ??
+          row.points ??
+          row.score ??
+          row.total_score ??
+          0;
+        const score = Number(scoreValue) || 0;
+        scoreMap[enrollment_no] = (scoreMap[enrollment_no] || 0) + score;
+      });
+
+      const rows = Object.entries(scoreMap)
+        .map(([enrollment_no, score]) => ({
+          enrollment_no,
+          score,
+          name: nameMap[enrollment_no] || enrollment_no,
+          field: fieldMap[enrollment_no] || "",
+        }))
+        .sort((a, b) => b.score - a.score)
+        .slice(0, 5);
+
+      setLeaderboard(rows);
     } catch (error: any) {
       console.error("Error fetching leaderboard:", error);
       toast({
@@ -390,7 +513,7 @@ export default function Dashboard() {
       const [{ data: scoresData, error: scoresError }, { data: attendanceData, error: attError }, { data: studentsData, error: stuError }] = await Promise.all([
         supabase.from("debate_scores").select("enrollment_no,points,date"),
         supabase.from("attendance").select("enrollment_no,hours,date"),
-        supabase.from("students_details").select("enrollment_no,student_name,member_type,field"),
+        supabase.from("students_details").select("enrollment_no,student_name,member_type"),
       ]);
 
       if (scoresError || attError || stuError) {
@@ -597,29 +720,32 @@ export default function Dashboard() {
         initial={{ opacity: 0, y: 15 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.6 }}
-        className="relative overflow-hidden rounded-[1.75rem] sm:rounded-[2.5rem] bg-gradient-to-br from-[#ece5d4] to-[#d8ecea] border border-white/40 shadow-[var(--shadow-card)] p-5 sm:p-8 lg:p-12"
+        className="relative overflow-hidden rounded-[2.5rem] bg-gradient-to-br from-[#ece5d4] to-[#d8ecea] border border-white/40 shadow-[var(--shadow-card)] p-8 sm:p-12"
       >
         <div className="absolute top-0 right-0 -mr-20 -mt-20 w-80 h-80 bg-green-500/10 rounded-full blur-[80px]" />
         <div className="absolute bottom-0 left-0 -ml-20 -mb-20 w-64 h-64 bg-teal-500/10 rounded-full blur-[60px]" />
         
-        <div className="relative z-10 flex flex-col md:flex-row md:items-center justify-between gap-5 sm:gap-8">
+        <div className="relative z-10 flex flex-col md:flex-row md:items-center justify-between gap-8">
           <div className="space-y-4">
             <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-green-100 border border-green-200 text-[10px] font-bold tracking-[0.14em] uppercase text-green-700">
               <Sparkles className="w-3.5 h-3.5" />
               SRL Ecosystem
             </div>
-            <h1 className="text-2xl sm:text-4xl lg:text-5xl font-extrabold tracking-tight leading-tight text-slate-900">
+            <h1 className="text-3xl sm:text-5xl font-extrabold tracking-tight leading-tight text-slate-900">
               Welcome back,<br />
-              <span className="text-green-600">{user?.name?.split(' ')[0] || "Scholar"}!</span>
+              <span className="text-green-600">{welcomeName?.split(' ')[0] || "Scholar"}!</span>
               {user?.enrollmentNo && (
                 <div className="mt-2 space-y-1">
                   <span className="block text-xs font-mono text-slate-400">ID: {user.enrollmentNo}</span>
+                  <span className="block text-[10px] text-slate-500">
+                    Trace: {userMonthlyAttendance}% | {userMonthlyScore} pts | {userTotalScore} tot (Matched: {(userTotalScore > 0 ? "YES" : "NO")})
+                  </span>
                 </div>
               )}
             </h1>
           </div>
           
-          <div className="grid w-full grid-cols-1 sm:grid-cols-3 gap-3 sm:gap-4 lg:max-w-[600px]">
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 lg:w-[600px]">
             {user?.role === 'admin' ? (
               <>
                 <div className="glass-card bg-white/60 border-green-100 p-6 rounded-[2rem] group transition-all duration-300 hover:bg-white hover:border-green-200">

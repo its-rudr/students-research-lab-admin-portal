@@ -184,11 +184,12 @@ export default function AdminLayout() {
         </nav>
 
         {/* Collapse button */}
-        <div className="px-3 py-3 border-t border-border">
+        <div className="mt-auto h-14 border-t border-border bg-sidebar flex items-center justify-center">
           {isDesktop && (
             <button
               onClick={() => setSidebarOpen(!sidebarOpen)}
-              className="sidebar-item w-full justify-center"
+              className="inline-flex h-8 w-8 items-center justify-center rounded-md text-muted-foreground hover:text-foreground hover:bg-muted/40 transition-colors"
+              aria-label={sidebarOpen ? "Collapse sidebar" : "Expand sidebar"}
             >
               <motion.div animate={{ rotate: sidebarOpen ? 180 : 0 }} transition={{ duration: 0.2 }}>
                 <ChevronRight className="w-4 h-4" />

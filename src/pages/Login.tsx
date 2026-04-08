@@ -30,56 +30,79 @@ export default function Login() {
     setLoading(true);
 
     try {
-      const normalizedEmail = email.trim().toLowerCase();
+      const loginId = email.trim();
+      const normalizedEmail = loginId.toLowerCase();
       const passwordValue = password.trim();
 
-      let users: any[] | null = null;
-      const primaryResult = await supabase
-        .from("students_details")
-        .select("student_name,email,enrollment_no,member_type,login_password")
-        .eq("email", normalizedEmail)
+      let authResult = await supabase
+        .from("authorization")
+        .select("*")
+        .eq("user_ID", loginId)
         .limit(1);
 
-      if (primaryResult.error) {
-        const missingPasswordColumn = primaryResult.error.message?.toLowerCase().includes("login_password");
-
-        if (!missingPasswordColumn) {
-          throw primaryResult.error;
-        }
-
-        const fallbackResult = await supabase
-          .from("students_details")
-          .select("student_name,email,enrollment_no,member_type")
-          .eq("email", normalizedEmail)
+      if (authResult.error?.message?.toLowerCase().includes("column authorization.user_id does not exist")) {
+        authResult = await supabase
+          .from("authorization")
+          .select("*")
+          .eq("user_id", loginId)
           .limit(1);
-
-        if (fallbackResult.error) {
-          throw fallbackResult.error;
-        }
-
-        users = fallbackResult.data;
-      } else {
-        users = primaryResult.data;
       }
 
-      const matchedUser = users?.[0];
-      if (!matchedUser) {
+      if (authResult.error?.message?.toLowerCase().includes("column authorization.user_id does not exist")) {
+        authResult = await supabase
+          .from("authorization")
+          .select("*")
+          .eq("email", normalizedEmail)
+          .limit(1);
+      }
+
+      if (authResult.error?.message?.toLowerCase().includes("column authorization.email does not exist")) {
+        authResult = await supabase
+          .from("authorization")
+          .select("*")
+          .eq("username", normalizedEmail)
+          .limit(1);
+      }
+
+      if (authResult.error) {
+        throw authResult.error;
+      }
+
+      const matchedAuth = authResult.data?.[0];
+      if (!matchedAuth) {
         throw new Error("No account found for this email address.");
       }
 
-      const enrollmentNo = String(matchedUser.enrollment_no || "").trim();
-      const assignedPassword = String(matchedUser.login_password || enrollmentNo).trim();
+      const storedPassword = String(
+        matchedAuth.password ?? matchedAuth.login_password ?? matchedAuth.pass ?? matchedAuth.pwd ?? ""
+      ).trim();
 
-      if (!assignedPassword || assignedPassword !== passwordValue) {
-        throw new Error(matchedUser.login_password ? "Invalid password." : "Invalid password. Use your enrollment number.");
+      if (!storedPassword || storedPassword !== passwordValue) {
+        throw new Error("Invalid password.");
       }
 
-      const memberType = String(matchedUser.member_type || "member").toLowerCase();
-      const role = memberType === "admin" ? "admin" : "member";
+      const profileEmail = String(matchedAuth.email || normalizedEmail).trim().toLowerCase();
+      const { data: profileData, error: profileError } = await supabase
+        .from("students_details")
+        .select("student_name,enrollment_no")
+        .eq("email", profileEmail)
+        .limit(1);
+
+      if (profileError) {
+        throw profileError;
+      }
+
+      const profile = profileData?.[0];
+      const memberType = String(matchedAuth.member_type || matchedAuth.role || "member").toLowerCase();
+      const isAdminLogin = normalizedEmail === "adminsrl@gmail.com" || String(matchedAuth.user_ID || "").trim().toLowerCase() === "adminsrl@gmail.com";
+      const role = isAdminLogin || memberType === "admin" ? "admin" : "member";
+      const enrollmentNo = String(matchedAuth.enrollment_no || profile?.enrollment_no || "").trim();
+      const displayName =
+        String(matchedAuth.student_name || matchedAuth.name || profile?.student_name || "").trim() || normalizedEmail;
 
       saveSession({
-        email: normalizedEmail,
-        name: matchedUser.student_name || normalizedEmail,
+        email: profileEmail,
+        name: displayName,
         enrollmentNo,
         role,
       });

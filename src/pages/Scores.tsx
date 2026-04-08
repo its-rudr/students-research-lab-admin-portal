@@ -91,8 +91,35 @@ export default function Scores() {
         nameMap[stu.enrollment_no] = stu.student_name;
         photoMap[stu.enrollment_no] = undefined;
       });
+
+      const now = new Date();
+      const previousMonthDate = new Date(now.getFullYear(), now.getMonth() - 1, 1);
+      const targetMonth = previousMonthDate.getMonth() + 1;
+      const targetYear = previousMonthDate.getFullYear();
+
+      const isTargetMonth = (value: any) => {
+        const dateStr = String(value || "").trim();
+        if (!dateStr) return false;
+
+        const monthPad = String(targetMonth).padStart(2, "0");
+        if (
+          dateStr.includes(`${targetYear}-${monthPad}`) ||
+          dateStr.includes(`${monthPad}/${targetYear}`) ||
+          dateStr.includes(`${targetMonth}/${targetYear}`)
+        ) {
+          return true;
+        }
+
+        const parsed = new Date(dateStr);
+        return !Number.isNaN(parsed.getTime()) && parsed.getMonth() + 1 === targetMonth && parsed.getFullYear() === targetYear;
+      };
+
       const scoreMap: Record<string, number> = {};
       const merged = scoresData.map((row: any) => {
+        if (!isTargetMonth(row.date || row.Date || row.DATE)) {
+          return null;
+        }
+
         const enrollNo = row.enrollment_no || row["enroll no."] || row.enroll_no || "";
         const scoreValue = row.total_points ?? row.points ?? row.score ?? 0;
         const score = Number(scoreValue) || 0;
@@ -115,9 +142,9 @@ export default function Scores() {
           initials,
           photo_url: photoMap[enrollNo],
         };
-      });
+      }).filter(Boolean) as Array<{ enroll_no: string; score: number; name: string; initials: string; photo_url?: string }>;
 
-      // Keep one row per student and show total score leaderboard.
+      // Keep one row per student and show previous-month leaderboard only.
       const aggregated = Object.entries(scoreMap)
         .filter(([enrollNo]) => visibleEnrollmentSet.has(enrollNo))
         .map(([enrollNo, total]) => {
@@ -136,27 +163,9 @@ export default function Scores() {
       });
 
       const fallbackMerged = merged.filter((item) => item.enroll_no && visibleEnrollmentSet.has(item.enroll_no));
-      const studentBackfill = visibleStudents
-        .filter((stu: any) => stu.enrollment_no)
-        .map((stu: any) => {
-          const name = stu.student_name || stu.enrollment_no;
-          const initials = typeof name === "string" && name.length > 0
-            ? name.split(" ").map((n: string) => n[0]).join("").toUpperCase()
-            : String(stu.enrollment_no).slice(0, 2).toUpperCase();
 
-          return {
-            enroll_no: stu.enrollment_no,
-            score: 0,
-            name,
-            initials,
-            photo_url: undefined,
-          };
-        });
-
-      const leaderboardRows = aggregated.length > 0
-        ? aggregated
-        : (fallbackMerged.length > 0 ? fallbackMerged : studentBackfill);
-      setScores(leaderboardRows.sort((a, b) => b.score - a.score));
+      const leaderboardRows = aggregated.length > 0 ? aggregated : fallbackMerged;
+      setScores(leaderboardRows.sort((a, b) => b.score - a.score).slice(0, 5));
       setLoading(false);
     };
     fetchScores();
@@ -220,7 +229,7 @@ export default function Scores() {
       <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} className="glass-card rounded-2xl overflow-hidden">
         <div className="p-5 border-b border-border">
           <h2 className="section-title flex items-center gap-2">
-            <Trophy className="w-4 h-4 text-primary" /> Live Score Leaderboard
+            <Trophy className="w-4 h-4 text-primary" /> Last Month Top Scorers
           </h2>
         </div>
         <div className="divide-y divide-border/50">
