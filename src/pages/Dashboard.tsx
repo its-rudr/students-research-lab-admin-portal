@@ -614,9 +614,6 @@ export default function Dashboard() {
               {user?.enrollmentNo && (
                 <div className="mt-2 space-y-1">
                   <span className="block text-xs font-mono text-slate-400">ID: {user.enrollmentNo}</span>
-                  <span className="block text-[10px] text-slate-500">
-                    Trace: {userMonthlyAttendance}% | {userMonthlyScore} pts | {userTotalScore} tot (Matched: {(userTotalScore > 0 ? "YES" : "NO")})
-                  </span>
                 </div>
               )}
             </h1>
