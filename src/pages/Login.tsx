@@ -103,8 +103,8 @@ export default function Login() {
 
   return (
     <div className="min-h-screen flex flex-col bg-pastel-gradient-login overflow-x-hidden">
-      <div className="flex-1 flex items-center justify-center p-4 lg:p-8">
-        <div className="w-full max-w-[1000px] flex flex-col lg:flex-row items-center lg:items-start justify-center gap-10 lg:gap-14 lg:mt-6">
+      <div className="flex-1 flex items-center justify-center p-3 sm:p-4 lg:p-8">
+        <div className="w-full max-w-[1000px] flex flex-col lg:flex-row items-center lg:items-start justify-center gap-6 sm:gap-10 lg:gap-14 lg:mt-6">
 
           {/* Left Side: Branding & Hero (Desktop & Tablet) */}
           <motion.div
@@ -114,9 +114,9 @@ export default function Login() {
             className="flex-1 flex flex-col items-center lg:items-start space-y-6"
           >
             {/* Logo and Brand Name beside it */}
-            <div className="flex items-center gap-5">
+            <div className="flex items-center gap-3 sm:gap-5">
               <img src="/SRL Logo.svg" alt="SRL Logo" className="w-16 h-16 lg:w-20 lg:h-20 drop-shadow-xl" />
-              <h1 className="text-3xl lg:text-4xl font-extrabold leading-tight tracking-tighter">
+              <h1 className="text-2xl sm:text-3xl lg:text-4xl font-extrabold leading-tight tracking-tighter">
                 <span className="animate-gradient-text">Students Research Lab</span>
               </h1>
             </div>
@@ -143,14 +143,14 @@ export default function Login() {
             transition={{ delay: 0.3, duration: 0.5 }}
             className="w-full max-w-[390px] space-y-4 lg:mt-2"
           >
-            <div className="bg-white/80 backdrop-blur-xl border border-white/60 rounded-[2rem] p-10 shadow-2xl flex flex-col items-center">
-              <p className="text-[12px] leading-relaxed text-center italic text-teal-950/80 mb-8 font-semibold max-w-[300px] tracking-tight">
+            <div className="bg-white/80 backdrop-blur-xl border border-white/60 rounded-[1.5rem] sm:rounded-[2rem] p-5 sm:p-8 lg:p-10 shadow-2xl flex flex-col items-center">
+              <p className="text-[11px] sm:text-[12px] leading-relaxed text-center italic text-teal-950/80 mb-6 sm:mb-8 font-semibold max-w-[300px] tracking-tight">
                 "Fostering a disciplined research culture, consistency in academic practice, and excellence through collaborative scholarly engagement"
               </p>
-              <h2 className="text-2xl font-extrabold text-teal-950 mb-1 tracking-tight">Login to SRL</h2>
-              <p className="text-sm text-teal-800/80 mb-8 font-bold tracking-wide">Enter your credentials below</p>
+              <h2 className="text-xl sm:text-2xl font-extrabold text-teal-950 mb-1 tracking-tight">Login to SRL</h2>
+              <p className="text-xs sm:text-sm text-teal-800/80 mb-6 sm:mb-8 font-bold tracking-wide">Enter your credentials below</p>
 
-              <form onSubmit={handleLogin} className="w-full space-y-6">
+              <form onSubmit={handleLogin} className="w-full space-y-5 sm:space-y-6">
                 <div className="space-y-2">
                   <Label htmlFor="email" className="text-[11px] font-extrabold text-teal-950 ml-1 uppercase tracking-[0.12em]">Login Email ID</Label>
                   <div className="relative flex items-center">

@@ -57,6 +57,7 @@ const pageNames: Record<string, string> = {
 };
 
 export default function AdminLayout() {
+  const [isDesktop, setIsDesktop] = useState(() => window.innerWidth >= 1024);
   const [sidebarOpen, setSidebarOpen] = useState(() => window.innerWidth >= 1024);
   const location = useLocation();
   const navigate = useNavigate();
@@ -69,14 +70,26 @@ export default function AdminLayout() {
     year: "numeric",
   });
 
-  // Close sidebar on mobile when route changes
+  useEffect(() => {
+    const mediaQuery = window.matchMedia("(min-width: 1024px)");
+    const handleViewportChange = (event: MediaQueryListEvent) => {
+      setIsDesktop(event.matches);
+      setSidebarOpen(event.matches);
+    };
+
+    setIsDesktop(mediaQuery.matches);
+    setSidebarOpen(mediaQuery.matches);
+
+    mediaQuery.addEventListener("change", handleViewportChange);
+    return () => mediaQuery.removeEventListener("change", handleViewportChange);
+  }, []);
+
   // Only auto-close sidebar on mobile when route changes
   useEffect(() => {
-    if (window.innerWidth < 1024) {
+    if (!isDesktop) {
       setSidebarOpen(false);
     }
-    // On desktop, do not auto-close sidebar
-  }, [location.pathname]);
+  }, [isDesktop, location.pathname]);
 
   const handleLogout = async () => {
     try {
@@ -97,10 +110,10 @@ export default function AdminLayout() {
   };
 
   return (
-    <div className="flex h-screen w-full overflow-hidden bg-background relative">
+    <div className="relative flex min-h-dvh w-full overflow-hidden bg-background">
       {/* Mobile overlay when sidebar is open */}
       <AnimatePresence>
-        {sidebarOpen && window.innerWidth < 1024 && (
+        {sidebarOpen && !isDesktop && (
           <motion.div
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
@@ -114,7 +127,7 @@ export default function AdminLayout() {
       {/* Sidebar - Hidden on mobile unless opened */}
       <motion.aside
         initial={false}
-        animate={{ width: window.innerWidth >= 1024 ? (sidebarOpen ? 260 : 72) : sidebarOpen ? 260 : 0 }}
+        animate={{ width: isDesktop ? (sidebarOpen ? 260 : 72) : sidebarOpen ? 260 : 0 }}
         transition={{ duration: 0.3, ease: [0.4, 0, 0.2, 1] }}
         className="flex flex-col border-r border-border bg-sidebar h-full shrink-0 z-30 fixed top-0 left-0 lg:static"
       >
@@ -170,14 +183,16 @@ export default function AdminLayout() {
 
         {/* Collapse button */}
         <div className="px-3 py-3 border-t border-border">
-          <button
-            onClick={() => setSidebarOpen(!sidebarOpen)}
-            className="sidebar-item w-full justify-center"
-          >
-            <motion.div animate={{ rotate: sidebarOpen ? 180 : 0 }} transition={{ duration: 0.2 }}>
-              <ChevronRight className="w-4 h-4" />
-            </motion.div>
-          </button>
+          {isDesktop && (
+            <button
+              onClick={() => setSidebarOpen(!sidebarOpen)}
+              className="sidebar-item w-full justify-center"
+            >
+              <motion.div animate={{ rotate: sidebarOpen ? 180 : 0 }} transition={{ duration: 0.2 }}>
+                <ChevronRight className="w-4 h-4" />
+              </motion.div>
+            </button>
+          )}
         </div>
       </motion.aside>
 
@@ -207,10 +222,12 @@ export default function AdminLayout() {
             <div className="hidden md:inline-flex items-center px-3 py-1 rounded-full border border-primary/15 bg-background/80 text-primary text-xs font-semibold shadow-sm">
               {today}
             </div>
-            <Button variant="ghost" size="icon" className="relative rounded-xl text-muted-foreground hover:text-foreground h-9 w-9 sm:h-10 sm:w-10">
-              <Bell className="w-4 h-4 sm:w-[18px] sm:h-[18px]" />
-              <span className="absolute top-2 right-2 w-2 h-2 bg-primary rounded-full" />
-            </Button>
+            {user?.role === "admin" && (
+              <Button variant="ghost" size="icon" className="relative rounded-xl text-muted-foreground hover:text-foreground h-9 w-9 sm:h-10 sm:w-10">
+                <Bell className="w-4 h-4 sm:w-[18px] sm:h-[18px]" />
+                <span className="absolute top-2 right-2 w-2 h-2 bg-primary rounded-full" />
+              </Button>
+            )}
             <Button
               variant="ghost"
               size="icon"

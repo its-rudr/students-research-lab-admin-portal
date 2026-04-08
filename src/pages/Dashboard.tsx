@@ -597,18 +597,18 @@ export default function Dashboard() {
         initial={{ opacity: 0, y: 15 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.6 }}
-        className="relative overflow-hidden rounded-[2.5rem] bg-gradient-to-br from-[#ece5d4] to-[#d8ecea] border border-white/40 shadow-[var(--shadow-card)] p-8 sm:p-12"
+        className="relative overflow-hidden rounded-[1.75rem] sm:rounded-[2.5rem] bg-gradient-to-br from-[#ece5d4] to-[#d8ecea] border border-white/40 shadow-[var(--shadow-card)] p-5 sm:p-8 lg:p-12"
       >
         <div className="absolute top-0 right-0 -mr-20 -mt-20 w-80 h-80 bg-green-500/10 rounded-full blur-[80px]" />
         <div className="absolute bottom-0 left-0 -ml-20 -mb-20 w-64 h-64 bg-teal-500/10 rounded-full blur-[60px]" />
         
-        <div className="relative z-10 flex flex-col md:flex-row md:items-center justify-between gap-8">
+        <div className="relative z-10 flex flex-col md:flex-row md:items-center justify-between gap-5 sm:gap-8">
           <div className="space-y-4">
             <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-green-100 border border-green-200 text-[10px] font-bold tracking-[0.14em] uppercase text-green-700">
               <Sparkles className="w-3.5 h-3.5" />
               SRL Ecosystem
             </div>
-            <h1 className="text-3xl sm:text-5xl font-extrabold tracking-tight leading-tight text-slate-900">
+            <h1 className="text-2xl sm:text-4xl lg:text-5xl font-extrabold tracking-tight leading-tight text-slate-900">
               Welcome back,<br />
               <span className="text-green-600">{user?.name?.split(' ')[0] || "Scholar"}!</span>
               {user?.enrollmentNo && (
@@ -619,7 +619,7 @@ export default function Dashboard() {
             </h1>
           </div>
           
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 lg:w-[600px]">
+          <div className="grid w-full grid-cols-1 sm:grid-cols-3 gap-3 sm:gap-4 lg:max-w-[600px]">
             {user?.role === 'admin' ? (
               <>
                 <div className="glass-card bg-white/60 border-green-100 p-6 rounded-[2rem] group transition-all duration-300 hover:bg-white hover:border-green-200">

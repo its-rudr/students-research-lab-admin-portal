@@ -150,14 +150,14 @@ export default function Students() {
           />
         </div>
         <div className="flex gap-2 w-full sm:w-auto">
-          <Button variant="outline" size="sm" className="rounded-xl gap-1.5">
+          <Button variant="outline" size="sm" className="rounded-xl gap-1.5 flex-1 sm:flex-none">
             <Filter className="w-3.5 h-3.5" />
             Filters
           </Button>
           {canEdit && (
             <Dialog open={open} onOpenChange={setOpen}>
               <DialogTrigger asChild>
-                <Button size="sm" className="rounded-xl gap-1.5">
+                <Button size="sm" className="rounded-xl gap-1.5 flex-1 sm:flex-none">
                   <Plus className="w-3.5 h-3.5" />
                   Add Student
                 </Button>
@@ -222,7 +222,7 @@ export default function Students() {
                     onChange={(e) => setFormData({ ...formData, department: e.target.value })}
                   />
                 </div>
-                <div className="grid grid-cols-3 gap-3">
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                   <div className="space-y-1.5">
                     <Label>Semester</Label>
                     <Input 
@@ -304,7 +304,7 @@ export default function Students() {
           transition={{ duration: 0.3 }}
           className="glass-card rounded-2xl overflow-hidden"
         >
-          <div className="overflow-x-auto">
+          <div className="overflow-x-auto -mx-3 sm:mx-0 px-3 sm:px-0">
             <table className="w-full">
               <thead>
                 <tr className="border-b border-border">
