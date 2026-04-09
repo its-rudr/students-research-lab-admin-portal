@@ -134,12 +134,22 @@ export default function Login() {
             initial={{ opacity: 0, x: -30 }}
             animate={{ opacity: 1, x: 0 }}
             transition={{ duration: 0.8 }}
-            className="flex-1 flex flex-col items-center space-y-8 mt-4"
+            className="flex-1 flex flex-col items-center space-y-8 mt-16"
           >
-            {/* Logo and Brand Name beside it */}
-            <div className="flex items-center gap-5">
-              <img src="/SRL Logo.svg" alt="SRL Logo" className="w-16 h-16 lg:w-20 lg:h-20 drop-shadow-xl" />
-              <h1 className="text-3xl lg:text-4xl font-extrabold leading-tight tracking-tighter">
+            {/* Logo Display - Clean and Simple with Shining Border */}
+            <div className="relative">
+              <div className="absolute inset-0 bg-gradient-to-r from-teal-300 via-cyan-200 to-teal-300 rounded-full blur-xl opacity-80 animate-pulse" />
+              <motion.img
+                src="/SRL Logo.svg"
+                alt="Students Research Lab Logo"
+                className="w-80 h-80 drop-shadow-2xl transition-transform duration-500 rounded-full border-4 border-teal-400/70 shadow-2xl shadow-teal-400/70"
+                whileHover={{ scale: 1.05 }}
+              />
+            </div>
+
+            {/* Title Below Logo */}
+            <div className="w-full text-center">
+              <h1 className="text-4xl lg:text-5xl font-extrabold leading-tight tracking-tighter">
                 <span className="animate-gradient-text">Students Research Lab</span>
               </h1>
             </div>
