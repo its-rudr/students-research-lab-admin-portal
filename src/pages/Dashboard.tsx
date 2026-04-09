@@ -150,39 +150,47 @@ export default function Dashboard() {
       const today = new Date().toISOString().split("T")[0];
       let targetDate = today;
 
-      let { data: attendanceRows, error: todayError } = await supabase
-        .from("attendance")
-        .select("enrollment_no,hours")
-        .eq("date", today);
 
-      if (todayError) throw todayError;
+      // Fetch attendance from leaderboard_stats table, attendance column
+      let { data: attendanceRows, error: attendanceError } = await supabase
+        .from("leaderboard_stats")
+        .select("enrollment_no,attendance,date");
 
-      // If today's rows don't exist, use the latest available attendance date.
-      if (!attendanceRows || attendanceRows.length === 0) {
-        const { data: latestDateRows, error: latestDateError } = await supabase
-          .from("attendance")
-          .select("date")
-          .order("date", { ascending: false })
-          .limit(1);
+      if (attendanceError) throw attendanceError;
 
-        if (latestDateError) throw latestDateError;
-
-        const latestDate = latestDateRows?.[0]?.date;
+      // Filter for today's date or latest date
+      let filteredRows = (attendanceRows || []).filter((row: any) => row.date === today);
+      if (filteredRows.length === 0 && attendanceRows && attendanceRows.length > 0) {
+        // Use latest date
+        const dates = attendanceRows.map((row: any) => row.date).filter(Boolean);
+        const latestDate = dates.sort().reverse()[0];
+        targetDate = latestDate;
+        filteredRows = (attendanceRows || []).filter((row: any) => row.date === latestDate);
         if (!latestDate) {
           setAttendancePercent(0);
           setAttendanceSubtitle("No attendance data");
           return;
         }
-
-        targetDate = latestDate;
-        const { data: latestRows, error: latestRowsError } = await supabase
-          .from("attendance")
-          .select("enrollment_no,hours")
-          .eq("date", latestDate);
-
-        if (latestRowsError) throw latestRowsError;
-        attendanceRows = latestRows || [];
+      } else {
+        targetDate = today;
       }
+
+      // Only count students with attendance > 0
+      const presentSet = new Set(
+        (filteredRows || [])
+          .filter((row: any) => visibleEnrollmentSet.has(row.enrollment_no) && Number(row.attendance || 0) > 0)
+          .map((row: any) => row.enrollment_no)
+      );
+
+      const presentCount = presentSet.size;
+      const percent = totalStudents > 0 ? Math.round((presentCount / totalStudents) * 100) : 0;
+
+      setAttendancePercent(percent);
+      setAttendanceSubtitle(
+        targetDate === today
+          ? `${presentCount} of ${totalStudents} present`
+          : `${presentCount} of ${totalStudents} present (${targetDate})`
+      );
 
       const presentSet = new Set(
         (attendanceRows || [])
@@ -350,7 +358,7 @@ export default function Dashboard() {
       setLoading(true);
 
       const [{ data: statsData, error: statsError }, { data: studentsData, error: studentsError }] = await Promise.all([
-        supabase.from("leaderboard_stats").select("*"),
+        supabase.from("debate_scores").select("*"),
         supabase.from("students_details").select("enrollment_no,student_name,member_type"),
       ]);
 
