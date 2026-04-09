@@ -215,7 +215,7 @@ export default function AdminLayout() {
             <div className="min-w-0">
               <div className="flex items-center gap-2 min-w-0">
                 <h1 className="page-title text-base sm:text-lg truncate">{currentPage}</h1>
-                <span className="hidden md:inline-flex items-center rounded-full border border-primary/15 bg-primary/8 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-[0.14em] text-primary">Live</span>
+                {/* <span className="hidden md:inline-flex items-center rounded-full border border-primary/15 bg-primary/8 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-[0.14em] text-primary">Live</span> */}
               </div>
               <p className="text-[11px] sm:text-xs text-muted-foreground/90 truncate font-medium tracking-[0.08em] uppercase">Students Research Lab</p>
             </div>
@@ -227,7 +227,7 @@ export default function AdminLayout() {
             </div>
             {user?.role === "admin" && (
               <Button variant="ghost" size="icon" className="relative rounded-xl text-muted-foreground hover:text-foreground h-9 w-9 sm:h-10 sm:w-10">
-                <Bell className="w-4 h-4 sm:w-[18px] sm:h-[18px]" />
+                {/* <Bell className="w-4 h-4 sm:w-[18px] sm:h-[18px]" /> */}
                 <span className="absolute top-2 right-2 w-2 h-2 bg-primary rounded-full" />
               </Button>
             )}
