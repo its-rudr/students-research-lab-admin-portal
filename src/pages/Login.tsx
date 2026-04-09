@@ -126,36 +126,22 @@ export default function Login() {
 
   return (
     <div className="min-h-screen flex flex-col bg-pastel-gradient-login overflow-x-hidden">
-      <div className="flex-1 flex items-center justify-center p-3 sm:p-4 lg:p-8">
-        <div className="w-full max-w-[1000px] flex flex-col lg:flex-row items-center lg:items-start justify-center gap-6 sm:gap-10 lg:gap-14 lg:mt-6">
+      <div className="flex-1 flex items-center justify-center p-4 lg:p-8">
+        <div className="w-full max-w-[1000px] flex flex-col lg:flex-row items-center lg:items-start justify-center gap-10 lg:gap-14 lg:mt-6">
 
-          {/* Left Side: Branding & Hero (Desktop & Tablet) */}
+          {/* Left Side: Branding & Logo (Desktop & Tablet) */}
           <motion.div
             initial={{ opacity: 0, x: -30 }}
             animate={{ opacity: 1, x: 0 }}
             transition={{ duration: 0.8 }}
-            className="flex-1 flex flex-col items-center lg:items-start space-y-6"
+            className="flex-1 flex flex-col items-center space-y-8 mt-4"
           >
             {/* Logo and Brand Name beside it */}
-            <div className="flex items-center gap-3 sm:gap-5">
+            <div className="flex items-center gap-5">
               <img src="/SRL Logo.svg" alt="SRL Logo" className="w-16 h-16 lg:w-20 lg:h-20 drop-shadow-xl" />
-              <h1 className="text-2xl sm:text-3xl lg:text-4xl font-extrabold leading-tight tracking-tighter">
+              <h1 className="text-3xl lg:text-4xl font-extrabold leading-tight tracking-tighter">
                 <span className="animate-gradient-text">Students Research Lab</span>
               </h1>
-            </div>
-
-            {/* Hero Image / Content - Below the brand name */}
-            <div className="relative group max-w-[420px] w-full aspect-[4/5] lg:aspect-auto lg:h-[350px]">
-              <div className="absolute inset-0 bg-white/30 backdrop-blur-md rounded-[2rem] overflow-hidden shadow-2xl border border-white/40 group-hover:shadow-teal-500/10 transition-shadow duration-500">
-                <img
-                  src="/hero-login.jpg"
-                  alt="Research Lab"
-                  className="w-full h-full object-cover opacity-95 transition-transform duration-10000 group-hover:scale-110"
-                />
-                <div className="absolute inset-0 bg-gradient-to-t from-black/20 via-transparent to-transparent opacity-60" />
-              </div>
-
-              <div className="absolute -bottom-8 -left-8 w-32 h-32 bg-teal-200/15 rounded-full blur-3xl animate-pulse" />
             </div>
           </motion.div>
 
