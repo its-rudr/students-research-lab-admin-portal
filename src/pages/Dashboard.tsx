@@ -811,6 +811,7 @@ export default function Dashboard() {
       </div>
 
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6 sm:gap-8">
+        {/*
         <StatCard
           icon={TrendingUp}
           title="Avg Score / Student"
@@ -832,6 +833,7 @@ export default function Dashboard() {
           subtitle="Students with score 100+"
           delay={0.18}
         />
+        */}
       </div>
 
       {/* Two column layout */}
