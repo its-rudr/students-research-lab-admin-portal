@@ -85,6 +85,34 @@ export default function JoinRequests() {
     doc.save("join_requests.pdf");
   };
 
+  // Accept handler
+  const handleAccept = async (id: number) => {
+    const { error } = await supabase
+      .from("join_us")
+      .update({ status: "accepted" })
+      .eq("id", id);
+    if (error) {
+      toast({ variant: "destructive", title: "Error accepting request", description: error.message });
+    } else {
+      toast({ variant: "success", title: "Request accepted" });
+      fetchRows();
+    }
+  };
+
+  // Reject handler
+  const handleReject = async (id: number) => {
+    const { error } = await supabase
+      .from("join_us")
+      .update({ status: "rejected" })
+      .eq("id", id);
+    if (error) {
+      toast({ variant: "destructive", title: "Error rejecting request", description: error.message });
+    } else {
+      toast({ variant: "success", title: "Request rejected" });
+      fetchRows();
+    }
+  };
+
   return (
     <div className="max-w-7xl mx-auto space-y-6">
       <div className="flex flex-col sm:flex-row justify-between items-center gap-3">
@@ -115,6 +143,7 @@ export default function JoinRequests() {
                 <th className="px-2 py-2">Source</th>
                 <th className="px-2 py-2">Reference Name</th>
                 <th className="px-2 py-2">Created At</th>
+                <th className="px-2 py-2">Actions</th>
               </tr>
             </thead>
             <tbody>
@@ -132,6 +161,10 @@ export default function JoinRequests() {
                   <td className="px-2 py-1 whitespace-nowrap">{r.source}</td>
                   <td className="px-2 py-1 whitespace-nowrap">{r.reference_name}</td>
                   <td className="px-2 py-1 whitespace-nowrap">{new Date(r.created_at).toLocaleString()}</td>
+                  <td className="px-2 py-1 whitespace-nowrap">
+                    <Button size="sm" variant="success" className="mr-1" onClick={() => handleAccept(r.id)}>Accept</Button>
+                    <Button size="sm" variant="destructive" onClick={() => handleReject(r.id)}>Reject</Button>
+                  </td>
                 </tr>
               ))}
             </tbody>

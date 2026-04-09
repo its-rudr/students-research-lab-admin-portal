@@ -755,6 +755,7 @@ export default function Dashboard() {
                     <ArrowUpRight className="w-3 h-3 transition-transform group-hover:translate-x-0.5 group-hover:-translate-y-0.5" />
                   </p>
                 </div>
+                {/*
                 <div className="glass-card bg-white/60 border-green-100 p-6 rounded-[2rem] group transition-all duration-300 hover:bg-white hover:border-green-200">
                   <p className="text-green-600 font-black text-3xl mb-1">{attendanceLoading ? "..." : `${attendancePercent}%`}</p>
                   <p className="text-[10px] uppercase tracking-widest text-green-700/60 font-bold flex items-center gap-1 group-hover:text-green-700 transition-colors">
@@ -762,6 +763,7 @@ export default function Dashboard() {
                     <ArrowUpRight className="w-3 h-3 transition-transform group-hover:translate-x-0.5 group-hover:-translate-y-0.5" />
                   </p>
                 </div>
+                */}
               </>
             ) : (
               <>
@@ -947,7 +949,8 @@ export default function Dashboard() {
 
       {/* Charts Row */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 sm:gap-8">
-        {/* Bar Chart - Top 5 by Score */}
+        {/* Bar Chart - Top 5 by Score (HIDDEN) */}
+        {false && (
         <motion.div
           initial={{ opacity: 0, y: 12 }}
           animate={{ opacity: 1, y: 0 }}
@@ -995,8 +998,10 @@ export default function Dashboard() {
             </ResponsiveContainer>
           )}
         </motion.div>
+        )}
 
-        {/* Bar Chart - Top 5 by Attendance Hours */}
+        {/* Bar Chart - Top 5 by Attendance Hours (HIDDEN) */}
+        {false && (
         <motion.div
           initial={{ opacity: 0, y: 12 }}
           animate={{ opacity: 1, y: 0 }}
@@ -1043,8 +1048,10 @@ export default function Dashboard() {
             </ResponsiveContainer>
           )}
         </motion.div>
+        )}
 
-        {/* Line Chart - Monthly Trends */}
+        {/* Line Chart - Monthly Trends (HIDDEN) */}
+        {false && (
         <motion.div
           initial={{ opacity: 0, y: 12 }}
           animate={{ opacity: 1, y: 0 }}
@@ -1087,8 +1094,10 @@ export default function Dashboard() {
             </ResponsiveContainer>
           )}
         </motion.div>
+        )}
 
-        {/* Pie Chart - Score Distribution */}
+        {/* Pie Chart - Score Distribution (HIDDEN) */}
+        {false && (
         <motion.div
           initial={{ opacity: 0, y: 12 }}
           animate={{ opacity: 1, y: 0 }}
@@ -1150,6 +1159,7 @@ export default function Dashboard() {
             </div>
           )}
         </motion.div>
+        )}
 
         {/* Pie Chart - Gender Ratio by Semester */}
         <motion.div
