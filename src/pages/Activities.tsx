@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { motion } from "framer-motion";
-import { Plus, Edit, Trash2, Calendar, Image, Loader2 } from "lucide-react";
+import { Plus, Edit, Trash2, Calendar, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
@@ -21,7 +21,14 @@ export default function Activities() {
   const [activities, setActivities] = useState<Activity[]>([]);
   const [loading, setLoading] = useState(true);
   const [open, setOpen] = useState(false);
+  const [editOpen, setEditOpen] = useState(false);
+  const [editingActivity, setEditingActivity] = useState<Activity | null>(null);
   const [formData, setFormData] = useState({
+    title: "",
+    date: "",
+    description: "",
+  });
+  const [editFormData, setEditFormData] = useState({
     title: "",
     date: "",
     description: "",
@@ -33,6 +40,38 @@ export default function Activities() {
   useEffect(() => {
     fetchActivities();
   }, []);
+
+  const parseActivityDate = (value: string) => {
+    if (!value) return null;
+
+    const trimmed = value.trim();
+    const direct = new Date(trimmed);
+    if (!Number.isNaN(direct.getTime())) {
+      return direct;
+    }
+
+    const slashOrDash = trimmed.match(/^(\d{1,2})[\/-](\d{1,2})[\/-](\d{4})$/);
+    if (slashOrDash) {
+      const [, p1, p2, year] = slashOrDash;
+      const day = Number.parseInt(p1, 10);
+      const month = Number.parseInt(p2, 10);
+      const parsed = new Date(Number.parseInt(year, 10), month - 1, day);
+      if (!Number.isNaN(parsed.getTime())) {
+        return parsed;
+      }
+    }
+
+    const compact = trimmed.match(/^(\d{4})(\d{2})(\d{2})$/);
+    if (compact) {
+      const [, year, month, day] = compact;
+      const parsed = new Date(Number.parseInt(year, 10), Number.parseInt(month, 10) - 1, Number.parseInt(day, 10));
+      if (!Number.isNaN(parsed.getTime())) {
+        return parsed;
+      }
+    }
+
+    return null;
+  };
 
   const fetchActivities = async () => {
     try {
@@ -46,7 +85,11 @@ export default function Activities() {
       
       // Additional client-side sorting to ensure newest first
       const sortedData = (data || []).sort((a, b) => {
-        return new Date(b.date).getTime() - new Date(a.date).getTime();
+        const bDate = parseActivityDate(b.date);
+        const aDate = parseActivityDate(a.date);
+        const bTime = bDate ? bDate.getTime() : Number.NEGATIVE_INFINITY;
+        const aTime = aDate ? aDate.getTime() : Number.NEGATIVE_INFINITY;
+        return bTime - aTime;
       });
       
       setActivities(sortedData);
@@ -84,9 +127,15 @@ export default function Activities() {
         return;
       }
 
+      const payload = {
+        title: formData.title.trim(),
+        date: formData.date,
+        description: formData.description.trim(),
+      };
+
       const { data, error } = await supabase
         .from('activities')
-        .insert([formData])
+        .insert([payload])
         .select();
 
       if (error) throw error;
@@ -103,6 +152,77 @@ export default function Activities() {
       toast({
         variant: "destructive",
         title: "Error adding activity",
+        description: error.message,
+      });
+    }
+  };
+
+  const handleStartEdit = (activity: Activity) => {
+    if (!canEdit) {
+      toast({
+        variant: "destructive",
+        title: "Read-only access",
+        description: "Only admin can edit activities.",
+      });
+      return;
+    }
+
+    setEditingActivity(activity);
+    const parsedDate = parseActivityDate(activity.date);
+    const isoDate = parsedDate ? parsedDate.toISOString().split('T')[0] : "";
+    setEditFormData({
+      title: activity.title,
+      date: isoDate,
+      description: activity.description || "",
+    });
+    setEditOpen(true);
+  };
+
+  const handleUpdateActivity = async () => {
+    if (!canEdit) {
+      toast({
+        variant: "destructive",
+        title: "Read-only access",
+        description: "Only admin can edit activities.",
+      });
+      return;
+    }
+
+    if (!editingActivity) return;
+
+    if (!editFormData.title.trim() || !editFormData.date) {
+      toast({
+        variant: "destructive",
+        title: "Please fill in required fields",
+        description: "Title and date are required.",
+      });
+      return;
+    }
+
+    try {
+      const { error } = await supabase
+        .from('activities')
+        .update({
+          title: editFormData.title.trim(),
+          date: editFormData.date,
+          description: editFormData.description.trim(),
+        })
+        .eq('id', editingActivity.id);
+
+      if (error) throw error;
+
+      toast({
+        title: "Activity updated successfully",
+      });
+
+      setEditOpen(false);
+      setEditingActivity(null);
+      fetchActivities();
+    } catch (error: any) {
+      console.error('Error updating activity:', error);
+      toast({
+        variant: "destructive",
+        title: "Error updating activity",
         description: error.message,
       });
     }
@@ -144,8 +264,11 @@ export default function Activities() {
 
   // Format date for display
   const formatDate = (dateString: string) => {
-    const date = new Date(dateString);
-    return date.toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' });
+    const parsed = parseActivityDate(dateString);
+    if (!parsed) {
+      return dateString || "Date unavailable";
+    }
+    return parsed.toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' });
   };
 
   if (loading) {
@@ -206,6 +329,56 @@ export default function Activities() {
           </Dialog>
         </div>
       )}
+
+      {canEdit && (
+        <Dialog
+          open={editOpen}
+          onOpenChange={(isOpen) => {
+            setEditOpen(isOpen);
+            if (!isOpen) {
+              setEditingActivity(null);
+            }
+          }}
+        >
+          <DialogContent className="rounded-2xl sm:max-w-md">
+            <DialogHeader><DialogTitle>Edit Activity / Event</DialogTitle></DialogHeader>
+            <div className="space-y-4 pt-2">
+              <div className="space-y-1.5">
+                <Label>Title *</Label>
+                <Input
+                  placeholder="Event title"
+                  className="rounded-xl"
+                  value={editFormData.title}
+                  onChange={(e) => setEditFormData({ ...editFormData, title: e.target.value })}
+                />
+              </div>
+              <div className="space-y-1.5">
+                <Label>Date *</Label>
+                <Input
+                  type="date"
+                  className="rounded-xl"
+                  value={editFormData.date}
+                  onChange={(e) => setEditFormData({ ...editFormData, date: e.target.value })}
+                />
+              </div>
+              <div className="space-y-1.5">
+                <Label>Description</Label>
+                <Textarea
+                  placeholder="Describe the event..."
+                  className="rounded-xl resize-none"
+                  rows={3}
+                  value={editFormData.description}
+                  onChange={(e) => setEditFormData({ ...editFormData, description: e.target.value })}
+                />
+              </div>
+              <div className="flex justify-end gap-2 pt-2">
+                <Button variant="outline" className="rounded-xl" onClick={() => setEditOpen(false)}>Cancel</Button>
+                <Button className="rounded-xl" onClick={handleUpdateActivity}>Update</Button>
+              </div>
+            </div>
+          </DialogContent>
+        </Dialog>
+      )}
       {!canEdit && <p className="text-xs text-muted-foreground">You have read-only access. Only admin can manage activities.</p>}
 
       {/* Timeline */}
@@ -240,6 +413,14 @@ export default function Activities() {
                     </div>
                     {canEdit && (
                       <div className="flex gap-1 shrink-0">
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="h-7 w-7 rounded-lg"
+                          onClick={() => handleStartEdit(activity)}
+                        >
+                          <Edit className="w-3.5 h-3.5" />
+                        </Button>
                         <Button 
                           variant="ghost" 
                           size="icon" 
