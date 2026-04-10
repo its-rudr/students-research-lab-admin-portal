@@ -1,11 +1,12 @@
 
 import { useState, useEffect } from "react";
-import { supabase } from "../lib/supabaseClient";
 import { Check, X } from "lucide-react";
 import { Button } from "../components/ui/button";
 import { motion } from "framer-motion";
 import StudentAvatar from "@/components/StudentAvatar";
 import { hasWriteAccess } from "@/lib/auth";
+import { adminAPI } from "@/lib/adminApi";
+import { useToast } from "@/hooks/use-toast";
 
 export default function Attendance() {
   const [students, setStudents] = useState<Array<{ enrollment_no: string; name: string; initials: string; hours: number; photo_url?: string }>>([]);
@@ -19,18 +20,28 @@ export default function Attendance() {
   const [allDates, setAllDates] = useState<string[]>([]);
   const canEdit = hasWriteAccess();
 
+  const { toast } = useToast();
+
   // Fetch all available attendance dates on mount
   useEffect(() => {
     const fetchDates = async () => {
-      const { data, error } = await supabase
-        .from("attendance")
-        .select("date")
-        .order("date", { ascending: false });
-      if (!error && data && data.length > 0) {
-        // Remove duplicates and sort descending
-        const uniqueDates = Array.from(new Set(data.map((row: any) => row.date))).sort((a, b) => b.localeCompare(a));
-        setAllDates(uniqueDates);
-        setAttendanceDate(uniqueDates[0]);
+      try {
+        const response = await adminAPI.getAttendance();
+        if (response.success && Array.isArray(response.data)) {
+          // Extract unique dates and sort descending
+          const uniqueDates = Array.from(new Set(response.data.map((row: any) => row.date))).sort((a, b) => b.localeCompare(a));
+          setAllDates(uniqueDates);
+          if (uniqueDates.length > 0) {
+            setAttendanceDate(uniqueDates[0]);
+          }
+        }
+      } catch (error) {
+        console.error("Error fetching attendance dates:", error);
+        toast({
+          variant: "destructive",
+          title: "Error",
+          description: "Failed to fetch attendance dates",
+        });
       }
     };
     fetchDates();
@@ -41,46 +52,61 @@ export default function Attendance() {
     if (!attendanceDate) return;
     const fetchData = async () => {
       setLoading(true);
-      const { data: attData, error: attError } = await supabase
-        .from("attendance")
-        .select("enrollment_no,hours")
-        .eq("date", attendanceDate);
-      const { data: stuData, error: stuError } = await supabase
-        .from("students_details")
-        .select("enrollment_no,student_name,member_type");
-      if (attError || stuError) {
+      try {
+        const [attResponse, stuResponse] = await Promise.all([
+          adminAPI.getAttendance(),
+          adminAPI.getStudents()
+        ]);
+
+        if (!attResponse.success || !stuResponse.success) {
+          setStudents([]);
+          setLoading(false);
+          return;
+        }
+
+        // Filter attendance for selected date
+        const attData = Array.isArray(attResponse.data) ? attResponse.data.filter((row: any) => row.date === attendanceDate) : [];
+        const stuData = Array.isArray(stuResponse.data) ? stuResponse.data : [];
+
+        const stuMap: { [enrollment_no: string]: { name: string; initials: string; photo_url?: string } } = {};
+        stuData
+          .filter((student: any) => String(student.member_type || "member").toLowerCase() !== "admin")
+          .forEach((s: any) => {
+            stuMap[s.enrollment_no] = {
+              name: s.student_name,
+              initials: s.student_name
+                .split(" ")
+                .map((n: string) => n[0])
+                .join("")
+                .toUpperCase(),
+              photo_url: undefined,
+            };
+          });
+
+        const studentsList = attData
+          .filter((row: any) => stuMap[row.enrollment_no])
+          .map((row: any) => {
+            const details = stuMap[row.enrollment_no];
+            return {
+              enrollment_no: row.enrollment_no,
+              name: details ? details.name : row.enrollment_no,
+              initials: details ? details.initials : row.enrollment_no.slice(0, 2).toUpperCase(),
+              photo_url: details?.photo_url,
+              hours: row.hours,
+            };
+          });
+        setStudents(studentsList);
+        setLoading(false);
+      } catch (error) {
+        console.error("Error fetching attendance data:", error);
+        toast({
+          variant: "destructive",
+          title: "Error",
+          description: "Failed to fetch attendance data",
+        });
         setStudents([]);
         setLoading(false);
-        return;
       }
-      const stuMap: { [enrollment_no: string]: { name: string; initials: string; photo_url?: string } } = {};
-      stuData
-        .filter((student: any) => String(student.member_type || "member").toLowerCase() !== "admin")
-        .forEach((s: any) => {
-        stuMap[s.enrollment_no] = {
-          name: s.student_name,
-          initials: s.student_name
-            .split(" ")
-            .map((n: string) => n[0])
-            .join("")
-            .toUpperCase(),
-          photo_url: undefined,
-        };
-      });
-      const studentsList = attData
-        .filter((row: any) => stuMap[row.enrollment_no])
-        .map((row: any) => {
-        const details = stuMap[row.enrollment_no];
-        return {
-          enrollment_no: row.enrollment_no,
-          name: details ? details.name : row.enrollment_no,
-          initials: details ? details.initials : row.enrollment_no.slice(0, 2).toUpperCase(),
-          photo_url: details?.photo_url,
-          hours: row.hours,
-        };
-      });
-      setStudents(studentsList);
-      setLoading(false);
     };
     fetchData();
   }, [attendanceDate]);
@@ -111,14 +137,30 @@ export default function Attendance() {
       setAdding(false);
       return;
     }
-    const { error } = await supabase.from("attendance").insert(rows);
-    if (error) {
-      setAddError(error.message);
-    } else {
+
+    try {
+      // Insert attendance records
+      for (const row of rows) {
+        await adminAPI.markAttendance(row);
+      }
+
+      toast({
+        title: "Attendance added successfully",
+      });
+
       setShowAddForm(false);
       setAddHours({});
       setAddDate("");
       setAttendanceDate(addDate);
+      
+      // Refresh the dates list
+      const response = await adminAPI.getAttendance();
+      if (response.success && Array.isArray(response.data)) {
+        const uniqueDates = Array.from(new Set(response.data.map((row: any) => row.date))).sort((a, b) => b.localeCompare(a));
+        setAllDates(uniqueDates);
+      }
+    } catch (error: any) {
+      setAddError(error.message || "Failed to add attendance");
     }
     setAdding(false);
   };

@@ -6,19 +6,19 @@ import { Input } from "@/components/ui/input";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { supabase } from "@/lib/supabaseClient";
 import { useToast } from "@/hooks/use-toast";
 import StudentAvatar from "@/components/StudentAvatar";
 import { hasWriteAccess } from "@/lib/auth";
+import { adminAPI } from "@/lib/adminApi";
 
-// Define the student type based on your Supabase table structure
+// Define the student type based on your API response
 interface Student {
-  id: number;
+  id?: number;
   student_name: string;
-  enrollment_no?: string;
+  enrollment_no: string;
   institute_name?: string;
   department?: string;
-  semester?: string;
+  semester?: number;
   division?: string;
   batch?: string;
   email: string;
@@ -49,7 +49,7 @@ export default function Students() {
   const { toast } = useToast();
   const canEdit = hasWriteAccess();
 
-  // Fetch students from Supabase
+  // Fetch students from API
   useEffect(() => {
     fetchStudents();
   }, []);
@@ -57,23 +57,21 @@ export default function Students() {
   const fetchStudents = async () => {
     try {
       setLoading(true);
-      const { data, error } = await supabase
-        .from('students_details')
-        .select('*');
-
-      if (error) throw error;
-      const visibleStudents = (data || []).filter(
-        (row: any) => String(row.member_type || "member").toLowerCase() !== "admin"
-      );
-      setStudents(visibleStudents);
+      const response = await adminAPI.getStudents();
+      
+      if (response.success && Array.isArray(response.data)) {
+        setStudents(response.data);
+      } else {
+        setStudents([]);
+      }
     } catch (error: any) {
-      console.error('Supabase error:', error);
+      console.error('API error:', error);
       toast({
         variant: "destructive",
         title: "Error fetching students",
         description: error.message,
       });
-      setStudents([]); // Set empty array on error so page still renders
+      setStudents([]);
     } finally {
       setLoading(false);
     }
@@ -90,34 +88,41 @@ export default function Students() {
       return;
     }
 
-    try {
-      const { data, error } = await supabase
-        .from('students_details')
-        .insert([formData])
-        .select();
-
-      if (error) throw error;
-
-      setStudents([data[0], ...students]);
-      setOpen(false);
-      setFormData({
-        student_name: "",
-        enrollment_no: "",
-        email: "",
-        contact_no: "",
-        department: "",
-        institute_name: "",
-        semester: "",
-        division: "",
-        batch: "",
-        gender: "male",
-        member_type: "member",
-      });
-      
+    // Validate required fields
+    if (!formData.student_name || !formData.enrollment_no || !formData.email) {
       toast({
-        title: "Student added",
-        description: "New student has been added successfully.",
+        variant: "destructive",
+        title: "Validation error",
+        description: "Please fill in all required fields.",
       });
+      return;
+    }
+
+    try {
+      const response = await adminAPI.createStudent(formData);
+      
+      if (response.success && response.data) {
+        setStudents([response.data, ...students]);
+        setOpen(false);
+        setFormData({
+          student_name: "",
+          enrollment_no: "",
+          email: "",
+          contact_no: "",
+          department: "",
+          institute_name: "",
+          semester: "",
+          division: "",
+          batch: "",
+          gender: "male",
+          member_type: "member",
+        });
+        
+        toast({
+          title: "Student added",
+          description: "New student has been added successfully.",
+        });
+      }
     } catch (error: any) {
       toast({
         variant: "destructive",
@@ -168,7 +173,7 @@ export default function Students() {
                 </DialogHeader>
                 <div className="space-y-4 pt-2">
                   <div className="space-y-1.5">
-                    <Label>Student Name</Label>
+                    <Label>Student Name *</Label>
                     <Input 
                       placeholder="Enter student name" 
                       className="rounded-xl"
@@ -177,7 +182,7 @@ export default function Students() {
                     />
                   </div>
                   <div className="space-y-1.5">
-                    <Label>Enrollment Number</Label>
+                    <Label>Enrollment Number *</Label>
                     <Input
                     placeholder="e.g. 2024CS001" 
                     className="rounded-xl"
@@ -186,7 +191,7 @@ export default function Students() {
                   />
                 </div>
                 <div className="space-y-1.5">
-                  <Label>Email</Label>
+                  <Label>Email *</Label>
                   <Input 
                     type="email" 
                     placeholder="student@example.com" 
@@ -319,7 +324,7 @@ export default function Students() {
                 <AnimatePresence>
                   {filtered.map((student, i) => (
                     <motion.tr
-                      key={student.id}
+                      key={student.enrollment_no}
                       initial={{ opacity: 0 }}
                       animate={{ opacity: 1 }}
                       transition={{ delay: i * 0.03 }}
