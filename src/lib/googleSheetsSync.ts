@@ -5,7 +5,7 @@
  * Configure your sheet mappings and column mappings for each table.
  */
 
-import { supabase } from './supabaseClient';
+import prisma from './prismaClient';
 import { fetchGoogleSheetData } from './googleSheetsService';
 
 export interface SyncResult {
@@ -19,7 +19,7 @@ export interface SyncResult {
 
 export interface SheetConfig {
   sheetRange: string;
-  supabaseTable: string;
+  supabaseTable: string; // Will be used as Prisma model name
   columnMapping: { [sheetColumn: string]: string };
   uniqueKey: string; // Column to use for upsert (e.g., 'enrollment_no')
   clearBeforeSync?: boolean; // If true, deletes all records before syncing
@@ -29,7 +29,7 @@ export interface SheetConfig {
  * Configuration for syncing different sheets to Supabase tables
  * Customize these mappings based on your Google Sheets structure
  */
-export const SYNC_CONFIGS: SheetConfig[] = [
+// Table names should match Prisma model names
   {
     sheetRange: 'Students', // Name of the sheet in Google Sheets
     supabaseTable: 'students_details',
@@ -121,7 +121,6 @@ function transformSheetData(
 /**
  * Sync a single sheet to Supabase table
  */
-export async function syncSheetToTable(config: SheetConfig): Promise<SyncResult> {
   const result: SyncResult = {
     success: false,
     table: config.supabaseTable,
@@ -141,35 +140,44 @@ export async function syncSheetToTable(config: SheetConfig): Promise<SyncResult>
 
     const transformedData = transformSheetData(sheetData, config.columnMapping);
 
-    if (config.clearBeforeSync) {
-      const { error: deleteError } = await supabase
-        .from(config.supabaseTable)
-        .delete()
-        .neq('id', -1);
-      
-      if (deleteError) {
-        result.errors.push(`Delete error: ${deleteError.message}`);
-        return result;
-      }
-      result.deleted = 1;
-    }
-
-    const { data, error } = await supabase
-      .from(config.supabaseTable)
-      .upsert(transformedData, {
-        onConflict: config.uniqueKey,
-        ignoreDuplicates: false,
-      })
-      .select();
-
-    if (error) {
-      result.errors.push(`Upsert error: ${error.message}`);
+    // Use Prisma for DB operations
+    const model = (prisma as any)[config.supabaseTable];
+    if (!model) {
+      result.errors.push(`Model ${config.supabaseTable} not found in Prisma client.`);
       return result;
     }
 
-    result.success = true;
-    result.inserted = data?.length || transformedData.length;
-    
+    if (config.clearBeforeSync) {
+      try {
+        await model.deleteMany({});
+        result.deleted = 1;
+      } catch (deleteError: any) {
+        result.errors.push(`Delete error: ${deleteError.message}`);
+        return result;
+      }
+    }
+
+    let inserted = 0;
+    let updated = 0;
+    for (const row of transformedData) {
+      try {
+        // Upsert logic: update if exists, else create
+        const where = { [config.uniqueKey]: row[config.uniqueKey] };
+        const existing = await model.findUnique({ where });
+        if (existing) {
+          await model.update({ where, data: row });
+          updated++;
+        } else {
+          await model.create({ data: row });
+          inserted++;
+        }
+      } catch (e: any) {
+        result.errors.push(e.message || 'Unknown error during upsert');
+      }
+    }
+    result.success = result.errors.length === 0;
+    result.inserted = inserted;
+    result.updated = updated;
   } catch (error: any) {
     result.errors.push(error.message || 'Unknown error occurred');
   }

@@ -1,8 +1,11 @@
+<<<<<<< HEAD
 // This is your Prisma schema file,
 // learn more about it in the docs: https://pris.ly/d/prisma-schema
 
 // Get a free hosted Postgres database in seconds: `npx create-db`
 
+=======
+>>>>>>> e0b918ac635d41cfb8cbd84349eeac337eafd0d9
 generator client {
   provider = "prisma-client"
   output   = "../generated/prisma"
@@ -11,3 +14,237 @@ generator client {
 datasource db {
   provider = "postgresql"
 }
+<<<<<<< HEAD
+=======
+
+/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
+model achievement_content {
+  id               Int       @id @default(autoincrement())
+  serial_no        Int       @unique
+  date_raw         String?
+  achievement_date DateTime? @db.Date
+  title            String
+  description      String?
+  category         String?
+  type             String?   @default("image")
+  linkedin_url     String?
+  image_url        String?
+  media_urls       String[]
+  created_at       DateTime? @default(now()) @db.Timestamptz(6)
+}
+
+/// This model or at least one of its fields has comments in the database, and requires an additional setup for migrations: Read more: https://pris.ly/d/database-comments
+model activities {
+  id          Int     @id @default(autoincrement())
+  title       String?
+  description String?
+  link        String?
+  brief       String?
+  date        String?
+  Photo       String?
+  sequence    Int?
+}
+
+/// The underlying table does not contain a valid unique identifier and can therefore currently not be handled by Prisma Client.
+model authorization {
+  user_ID  String? @db.VarChar(150)
+  password String? @db.VarChar(20)
+
+  @@ignore
+}
+
+model debate_scores {
+  id            Int    @id @default(autoincrement())
+  enrollment_no String @db.VarChar(20)
+  month         String @db.VarChar(15)
+  year          Int
+  points        Int?   @default(0)
+
+  @@unique([enrollment_no, month, year], map: "unique_student_month")
+}
+
+model join_us {
+  id                   BigInt    @id @default(autoincrement())
+  name                 String
+  enrollment           String    @unique(map: "unique_enrollment")
+  semester             String
+  division             String
+  branch               String
+  college              String
+  contact              String
+  email                String
+  batch                String
+  source               String
+  created_at           DateTime? @default(now()) @db.Timestamptz(6)
+  cpi                  String?   @db.VarChar(10)
+  ieee_member_2026     String?   @db.VarChar(3)
+  ieee_membership      String?   @db.VarChar(50)
+  resume_link          String?
+  research_expertise   String[]
+  research_publication String?   @db.VarChar(3)
+  research_ongoing     String?   @db.VarChar(3)
+
+  @@index([email], map: "idx_join_us_email")
+  @@index([enrollment], map: "idx_join_us_enrollment")
+}
+
+model leaderboard_stats {
+  id            Int       @id @default(autoincrement())
+  serial_no     Int       @db.SmallInt
+  student_name  String
+  enrollment_no String
+  period        String
+  attendance    Int?      @default(0) @db.SmallInt
+  hours         Decimal?  @default(0) @db.Decimal(8, 4)
+  debate_score  Int?      @default(0)
+  created_at    DateTime? @default(now()) @db.Timestamptz(6)
+
+  @@unique([serial_no, period])
+  @@index([enrollment_no], map: "idx_lb_enrollment")
+  @@index([period], map: "idx_lb_period")
+}
+
+/// This model contains row level security and requires additional setup for migrations. Visit https://pris.ly/d/row-level-security for more info.
+model member_cv_profiles {
+  id                    BigInt   @id @default(autoincrement())
+  enrollment_no         String   @unique
+  student_name          String
+  research_work_summary String?
+  research_area         String?
+  hackathons            Json     @default("[]")
+  research_papers       Json     @default("[]")
+  patents               Json     @default("[]")
+  projects              Json     @default("[]")
+  updated_by            String?
+  created_at            DateTime @default(now()) @db.Timestamptz(6)
+  updated_at            DateTime @default(now()) @db.Timestamptz(6)
+
+  @@index([enrollment_no], map: "idx_member_cv_profiles_enrollment_no")
+}
+
+model paper_authors {
+  id              Int             @id @default(autoincrement())
+  paper_id        Int
+  author_name     String
+  is_srl_member   String?
+  created_at      DateTime?       @default(now()) @db.Timestamptz(6)
+  research_papers research_papers @relation(fields: [paper_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+}
+
+model publications {
+  id              String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  serial_no       Int?     @unique
+  student_authors String
+  department      String?
+  institute       String?
+  title           String
+  event_type      String
+  is_srl_member   Boolean  @default(false)
+  paper_url       String?
+  pdf_url         String?
+  created_at      DateTime @default(now()) @db.Timestamptz(6)
+  updated_at      DateTime @default(now()) @db.Timestamptz(6)
+  venue           String?
+  date            String?
+  description     String?
+  tags            String[]
+  category        String?
+  enrollment_nos  String?
+  year            Int?
+
+  @@unique([title, venue], map: "publications_title_venue_unique")
+  @@index([category], map: "idx_publications_category")
+  @@index([title], map: "idx_publications_title")
+  @@index([year], map: "idx_publications_year")
+}
+
+model research_papers {
+  id              Int             @id @default(autoincrement())
+  sr_no           Int             @unique
+  department      String?
+  title           String
+  type_of_event   String?
+  publishing_year Int?
+  link_to_paper   String?
+  link_to_pdf     String?
+  created_at      DateTime?       @default(now()) @db.Timestamptz(6)
+  paper_authors   paper_authors[]
+}
+
+model research_project_members {
+  project_id        Int
+  enrollment_no     String            @db.VarChar(50)
+  student_image_url String?
+  research_projects research_projects @relation(fields: [project_id], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "rpm_project_fk")
+  students_details  students_details  @relation(fields: [enrollment_no], references: [enrollment_no], onDelete: Cascade, onUpdate: NoAction, map: "rpm_student_fk")
+
+  @@id([project_id, enrollment_no])
+}
+
+model research_projects {
+  id                       Int                        @id @default(autoincrement())
+  title                    String                     @db.VarChar(200)
+  description              String?
+  team_image_url           String?
+  social_link              String?
+  guide_name               String?                    @db.VarChar(150)
+  created_at               DateTime?                  @default(now()) @db.Timestamp(6)
+  research_project_members research_project_members[]
+}
+
+/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
+model session_content {
+  id           Int       @id @default(autoincrement())
+  serial_no    Int       @unique
+  date_raw     String?
+  session_date DateTime? @db.Date
+  title        String
+  description  String?
+  category     String?
+  type         String?   @default("video")
+  linkedin_url String?
+  image_url    String?
+  media_urls   String[]
+  created_at   DateTime? @default(now()) @db.Timestamptz(6)
+}
+
+model srl_sessions {
+  session_date DateTime @id @db.Date
+}
+
+model students_details {
+  id                       Int                        @id @default(autoincrement())
+  student_name             String                     @db.VarChar(150)
+  enrollment_no            String                     @unique @db.VarChar(20)
+  institute_name           String                     @db.VarChar(100)
+  department               String                     @db.VarChar(50)
+  semester                 Int
+  division                 String?                    @db.VarChar(5)
+  batch                    String                     @db.VarChar(20)
+  email                    String                     @unique @db.VarChar(150)
+  contact_no               String?                    @db.VarChar(15)
+  gender                   String?                    @db.VarChar(10)
+  member_type              String?                    @db.VarChar(50)
+  cv_url                   String?
+  created_at               DateTime?                  @default(now()) @db.Timestamp(6)
+  login_password           String?
+  profile_image            String?
+  research_project_members research_project_members[]
+
+  @@index([enrollment_no], map: "idx_sd_enrollment")
+}
+
+model timeline_entries {
+  id            BigInt   @id @default(autoincrement())
+  step          String
+  title         String
+  description   String
+  icon_svg      String?
+  display_order Int      @default(1)
+  is_active     Boolean  @default(true)
+  created_at    DateTime @default(now()) @db.Timestamptz(6)
+  updated_at    DateTime @default(now()) @db.Timestamptz(6)
+
+  @@unique([step, title], map: "timeline_entries_step_title_unique")
+}
+>>>>>>> e0b918ac635d41cfb8cbd84349eeac337eafd0d9
