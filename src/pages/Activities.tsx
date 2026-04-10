@@ -36,7 +36,6 @@ export default function Activities() {
   const { toast } = useToast();
   const canEdit = hasWriteAccess();
 
-  // Fetch activities from Supabase
   useEffect(() => {
     fetchActivities();
   }, []);
@@ -74,62 +73,111 @@ export default function Activities() {
   };
 
   const fetchActivities = async () => {
+    setLoading(true);
     try {
-      setLoading(true);
-      const { data, error } = await supabase
-        .from('activities')
-        .select('*')
-        .order('date', { ascending: false });
+      const data = await prisma.activities.findMany({ select: { id: true, title: true, description: true, date: true } });
+      setActivities(data || []);
+    } catch (error) {
+      setActivities([]);
+    }
+    setLoading(false);
+  };
 
-      if (error) throw error;
-    const fetchActivities = async () => {
-      setLoading(true);
-      try {
-        const data = await prisma.activities.findMany({ select: { id: true, name: true, description: true, date: true } });
-        setActivities(data || []);
-      } catch (error) {
-        setActivities([]);
-      }
-      setLoading(false);
-    };
+  const handleAddActivity = async () => {
+    if (!canEdit) {
+      toast({
+        variant: "destructive",
+        title: "Read-only access",
+        description: "Only admin can add activities.",
+      });
       return;
     }
-
-    try {
-      if (!formData.title || !formData.date) {
-        toast({
-          variant: "destructive",
-          title: "Please fill in required fields",
-          description: "Title and date are required.",
-        });
-        return;
-      }
-
-      const payload = {
-        title: formData.title.trim(),
-        date: formData.date,
-        description: formData.description.trim(),
-      };
-
-      const { data, error } = await supabase
-        .from('activities')
-        .insert([payload])
-        .select();
-
-      if (error) throw error;
-
+    if (!formData.title || !formData.date) {
       toast({
-        title: "Activity added successfully",
+        variant: "destructive",
+        title: "Please fill in required fields",
+        description: "Title and date are required.",
       });
-
+      return;
+    }
+    try {
+      await prisma.activities.create({
+        data: {
+          title: formData.title.trim(),
+          date: formData.date,
+          description: formData.description.trim(),
+        },
+      });
+      toast({ title: "Activity added successfully" });
       setOpen(false);
       setFormData({ title: "", date: "", description: "" });
       fetchActivities();
     } catch (error: any) {
-      console.error('Error adding activity:', error);
       toast({
         variant: "destructive",
         title: "Error adding activity",
+        description: error.message,
+      });
+    }
+  };
+
+  const handleUpdateActivity = async () => {
+    if (!canEdit) {
+      toast({
+        variant: "destructive",
+        title: "Read-only access",
+        description: "Only admin can edit activities.",
+      });
+      return;
+    }
+    if (!editingActivity) return;
+    if (!editFormData.title.trim() || !editFormData.date) {
+      toast({
+        variant: "destructive",
+        title: "Please fill in required fields",
+        description: "Title and date are required.",
+      });
+      return;
+    }
+    try {
+      await prisma.activities.update({
+        where: { id: editingActivity.id },
+        data: {
+          title: editFormData.title.trim(),
+          date: editFormData.date,
+          description: editFormData.description.trim(),
+        },
+      });
+      toast({ title: "Activity updated successfully" });
+      setEditOpen(false);
+      setEditingActivity(null);
+      fetchActivities();
+    } catch (error: any) {
+      toast({
+        variant: "destructive",
+        title: "Error updating activity",
+        description: error.message,
+      });
+    }
+  };
+
+  const handleDeleteActivity = async (id: number) => {
+    if (!canEdit) {
+      toast({
+        variant: "destructive",
+        title: "Read-only access",
+        description: "Only admin can delete activities.",
+      });
+      return;
+    }
+    try {
+      await prisma.activities.delete({ where: { id } });
+      toast({ title: "Activity deleted successfully" });
+      fetchActivities();
+    } catch (error: any) {
+      toast({
+        variant: "destructive",
+        title: "Error deleting activity",
         description: error.message,
       });
     }
@@ -156,89 +204,6 @@ export default function Activities() {
     setEditOpen(true);
   };
 
-  const handleUpdateActivity = async () => {
-    if (!canEdit) {
-      toast({
-        variant: "destructive",
-        title: "Read-only access",
-        description: "Only admin can edit activities.",
-      });
-      return;
-    }
-
-    if (!editingActivity) return;
-
-    if (!editFormData.title.trim() || !editFormData.date) {
-      toast({
-        variant: "destructive",
-        title: "Please fill in required fields",
-        description: "Title and date are required.",
-      });
-      return;
-    }
-
-    try {
-      const { error } = await supabase
-        .from('activities')
-        .update({
-          title: editFormData.title.trim(),
-          date: editFormData.date,
-          description: editFormData.description.trim(),
-        })
-        .eq('id', editingActivity.id);
-
-      if (error) throw error;
-
-      toast({
-        title: "Activity updated successfully",
-      });
-
-      setEditOpen(false);
-      setEditingActivity(null);
-      fetchActivities();
-    } catch (error: any) {
-      console.error('Error updating activity:', error);
-      toast({
-        variant: "destructive",
-        title: "Error updating activity",
-        description: error.message,
-      });
-    }
-  };
-
-  // Delete activity
-  const handleDeleteActivity = async (id: number) => {
-    if (!canEdit) {
-      toast({
-        variant: "destructive",
-        title: "Read-only access",
-        description: "Only admin can delete activities.",
-      });
-      return;
-    }
-
-    try {
-      const { error } = await supabase
-        .from('activities')
-        .delete()
-        .eq('id', id);
-
-      if (error) throw error;
-
-      toast({
-        title: "Activity deleted successfully",
-      });
-
-      fetchActivities();
-    } catch (error: any) {
-      console.error('Error deleting activity:', error);
-      toast({
-        variant: "destructive",
-        title: "Error deleting activity",
-        description: error.message,
-      });
-    }
-  };
 
   // Format date for display
   const formatDate = (dateString: string) => {

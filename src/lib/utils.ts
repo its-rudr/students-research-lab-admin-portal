@@ -1,4 +1,4 @@
-// Utility function to verify students_details table in Supabase
+// Utility function to verify students_details table in Prisma/Neon
 import prisma from './prismaClient';
 
 export async function verifyStudentsDetailsTable() {

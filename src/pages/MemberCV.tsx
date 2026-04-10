@@ -353,7 +353,7 @@ export default function MemberCV() {
       });
       toast({
         title: "Profile saved",
-        description: `CV profile updated for ${selectedMember.student_name}.",
+        description: `CV profile updated for ${selectedMember.student_name}.`,
       });
     } catch (error: any) {
       toast({

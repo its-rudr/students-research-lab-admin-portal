@@ -1,6 +1,29 @@
+// --- Added missing types for state ---
+interface LeaderboardEntry {
+  enrollment_no: string;
+  score: number;
+  name: string;
+  field: string;
+}
+
+interface TopScoreChartEntry {
+  name: string;
+  score: number;
+}
+
+interface TopAttendanceChartEntry {
+  name: string;
+  hours: number;
+}
+
+interface MonthlyTrendEntry {
+  month: string;
+  score: number;
+  hours: number;
+}
 import { useState, useEffect } from "react";
 import { motion } from "framer-motion";
-import { Users, CalendarCheck, BookOpen, Trophy, TrendingUp, Loader2, Calendar, BarChart2, PieChart as PieIcon, Activity, Clock } from "lucide-react";
+import { Users, CalendarCheck, BookOpen, Trophy, TrendingUp, Loader2, Calendar, BarChart2, PieChart as PieIcon, Activity, Clock, Sparkles, ArrowUpRight } from "lucide-react";
 import StatCard from "@/components/StatCard";
 import prisma from "@/lib/prismaClient";
 import { useToast } from "@/hooks/use-toast";
@@ -10,9 +33,6 @@ import {
 } from "recharts";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { getStoredUser } from "@/lib/auth";
-
-
-import { Sparkles, ArrowUpRight } from "lucide-react";
 // Monthly Attendance, Monthly Score, and Total Score cards hidden for all users
 
 interface ScoreBandEntry {
@@ -109,31 +129,20 @@ export default function Dashboard() {
   const fetchAttendanceSummary = async () => {
     try {
       setAttendanceLoading(true);
-
-      const { data: studentsData, error: studentsError } = await supabase
-        .from("students_details")
-        .select("enrollment_no,member_type");
-
-      if (studentsError) throw studentsError;
-
+      // Fetch students (non-admin)
+      const all = await prisma.students_details.findMany({ select: { enrollment_no: true, member_type: true } });
       const visibleEnrollmentSet = new Set(
-        (studentsData || [])
+        (all || [])
           .filter((row: any) => String(row.member_type || "member").toLowerCase() !== "admin")
           .map((row: any) => row.enrollment_no)
           .filter(Boolean)
       );
-
       const today = new Date().toISOString().split("T")[0];
       let targetDate = today;
-
-
-      // Fetch attendance from leaderboard_stats table, attendance column
-      let { data: attendanceRows, error: attendanceError } = await supabase
-        .from("leaderboard_stats")
-        .select("enrollment_no,attendance,date");
-
-      if (attendanceError) throw attendanceError;
-
+      // Fetch attendance from leaderboard_stats
+      const attendanceRows = await prisma.leaderboard_stats.findMany({
+        select: { enrollment_no: true, attendance: true, date: true },
+      });
       // Filter for today's date or latest date
       let filteredRows = (attendanceRows || []).filter((row: any) => row.date === today);
       if (filteredRows.length === 0 && attendanceRows && attendanceRows.length > 0) {
@@ -150,17 +159,14 @@ export default function Dashboard() {
       } else {
         targetDate = today;
       }
-
-      // Only count students with attendance > 0 (from leaderboard_stats)
+      // Only count students with attendance > 0
       const presentSet = new Set(
         (filteredRows || [])
           .filter((row: any) => visibleEnrollmentSet.has(row.enrollment_no) && Number(row.attendance || 0) > 0)
           .map((row: any) => row.enrollment_no)
       );
-
       const presentCount = presentSet.size;
       const percent = totalStudents > 0 ? Math.round((presentCount / totalStudents) * 100) : 0;
-
       setAttendancePercent(percent);
       setAttendanceSubtitle(
         targetDate === today
@@ -184,43 +190,30 @@ export default function Dashboard() {
       const now = new Date();
       const currentMonth = now.getMonth() + 1;
       const currentYear = now.getFullYear();
-
       const cleanEnNo = enNo.replace(/[^a-z0-9]/g, '');
-
       // 1. Fetch Scores
-      const { data: allScoresRaw, error: scoreError } = await supabase
-        .from("debate_scores")
-        .select("*");
-
-      if (scoreError) throw scoreError;
-
+      const allScoresRaw = await prisma.debate_scores.findMany();
       const userScores = (allScoresRaw || []).filter(s => {
         const dbEnNoRaw = String(s.enrollment_no || s.enroll_no || s["enroll no."] || "").trim().toLowerCase();
         const dbEnNoClean = dbEnNoRaw.replace(/[^a-z0-9]/g, '');
         return dbEnNoClean === cleanEnNo || dbEnNoRaw === enNo;
       });
-      
       // Calculate Total Lifetime Score
       const lifetime = userScores.reduce((sum, s) => {
         const val = s.total_points || s.points || s.score || 0;
         return sum + (typeof val === 'number' ? val : parseFloat(String(val)) || 0);
       }, 0);
       setUserTotalScore(lifetime);
-
       // Calculate Monthly Score
       const monthly = userScores.filter(s => {
         const dateStr = String(s.date || s.Date || s.DATE || "").trim();
         if (!dateStr) return false;
-        
         try {
-          // Check for substring matches like "03/2026" or "2026-03" or "March" as a first pass
           const monthPad = currentMonth < 10 ? `0${currentMonth}` : `${currentMonth}`;
           if (dateStr.includes(`${monthPad}/${currentYear}`) || 
               dateStr.includes(`${currentMonth}/${currentYear}`) ||
               dateStr.includes(`${currentYear}-${monthPad}`) ||
               dateStr.toLowerCase().includes("mar")) return true;
-
-          // Manual parts check
           const parts = dateStr.split(/[\/\-\.]/);
           if (parts.length >= 2) {
              const m = parseInt(parts[1]);
@@ -228,7 +221,6 @@ export default function Dashboard() {
              const y = yStr.length === 2 ? 2000 + parseInt(yStr) : parseInt(yStr);
              if (m === currentMonth && y === currentYear) return true;
           }
-          
           const d = new Date(dateStr);
           return !isNaN(d.getTime()) && (d.getMonth() + 1 === currentMonth && d.getFullYear() === currentYear);
         } catch { return false; }
@@ -236,31 +228,23 @@ export default function Dashboard() {
         const val = s.total_points || s.points || s.score || 0;
         return sum + (typeof val === 'number' ? val : parseFloat(String(val)) || 0);
       }, 0);
-      
       setUserMonthlyScore(monthly);
-
       // 2. Fetch Attendance
-      const { data: allAttRaw, error: attError } = await supabase
-        .from("attendance")
-        .select("*");
-
-      if (!attError && allAttRaw) {
+      const allAttRaw = await prisma.attendance.findMany();
+      if (allAttRaw) {
         const userAtt = allAttRaw.filter(a => {
           const dbEnNoRaw = String(a.enrollment_no || a.enroll_no || a["enroll no."] || "").trim().toLowerCase();
           const dbEnNoClean = dbEnNoRaw.replace(/[^a-z0-9]/g, '');
           return dbEnNoClean === cleanEnNo || dbEnNoRaw === enNo;
         });
-
         const monthAtt = userAtt.filter(a => {
           const dateStr = String(a.date || a.Date || a.DATE || "").trim();
           if (!dateStr) return false;
           const monthPad = currentMonth < 10 ? `0${currentMonth}` : `${currentMonth}`;
           if (dateStr.includes(`${monthPad}/${currentYear}`) || dateStr.includes(`${currentMonth}/${currentYear}`)) return true;
-          
           const d = new Date(dateStr);
           return !isNaN(d.getTime()) && (d.getMonth() + 1 === currentMonth && d.getFullYear() === currentYear);
         });
-        
         const daysPassed = Math.max(1, now.getDate());
         const presentDays = monthAtt.filter(a => {
           const h = a.hours || a.Hours || a.HOURS || 0;
@@ -269,7 +253,6 @@ export default function Dashboard() {
         const attPercent = Math.min(100, Math.round((presentDays / daysPassed) * 100));
         setUserMonthlyAttendance(attPercent);
       }
-
       console.log("METRIC_TRACE:", {
         enNo,
         cleanEnNo,
@@ -277,7 +260,6 @@ export default function Dashboard() {
         userScoresFound: userScores.length,
         lifetime
       });
-
     } catch (error) {
       console.error("Error fetching student metrics:", error);
     } finally {
@@ -290,23 +272,17 @@ export default function Dashboard() {
       setWelcomeName("Admin");
       return;
     }
-
     if (!user?.email) {
       setWelcomeName("");
       return;
     }
-
     try {
       const normalizedEmail = String(user.email).trim().toLowerCase();
-      const { data, error } = await supabase
-        .from("students_details")
-        .select("student_name")
-        .eq("email", normalizedEmail)
-        .limit(1);
-
-      if (error) throw error;
-
-      const studentName = String(data?.[0]?.student_name || "").trim();
+      const student = await prisma.students_details.findFirst({
+        where: { email: normalizedEmail },
+        select: { student_name: true },
+      });
+      const studentName = String(student?.student_name || "").trim();
       setWelcomeName(studentName);
     } catch {
       setWelcomeName("");
@@ -316,24 +292,18 @@ export default function Dashboard() {
   const fetchLeaderboard = async () => {
     try {
       setLoading(true);
-
-      const [{ data: statsData, error: statsError }, { data: studentsData, error: studentsError }] = await Promise.all([
-        supabase.from("leaderboard_stats").select("*"),
-        supabase.from("students_details").select("enrollment_no,student_name,member_type"),
+      // Fetch stats and students
+      const [statsData, studentsData] = await Promise.all([
+        prisma.leaderboard_stats.findMany(),
+        prisma.students_details.findMany({ select: { enrollment_no: true, student_name: true, member_type: true, field: true } }),
       ]);
-
-      if (statsError) throw statsError;
-      if (studentsError) throw studentsError;
-
       const now = new Date();
       const currentMonth = now.getMonth() + 1;
       const currentYear = now.getFullYear();
       const monthPad = String(currentMonth).padStart(2, "0");
-
       const isCurrentMonthByDateValue = (value: any) => {
         const dateStr = String(value || "").trim();
         if (!dateStr) return false;
-
         if (
           dateStr.includes(`${currentYear}-${monthPad}`) ||
           dateStr.includes(`${monthPad}/${currentYear}`) ||
@@ -341,7 +311,6 @@ export default function Dashboard() {
         ) {
           return true;
         }
-
         const parts = dateStr.split(/[\/\-.]/);
         if (parts.length >= 3) {
           const m = Number.parseInt(parts[1], 10);
@@ -351,32 +320,25 @@ export default function Dashboard() {
             return true;
           }
         }
-
         const parsed = new Date(dateStr);
         return !Number.isNaN(parsed.getTime()) && parsed.getMonth() + 1 === currentMonth && parsed.getFullYear() === currentYear;
       };
-
       const isCurrentMonthRow = (row: any) => {
         if (isCurrentMonthByDateValue(row.date || row.Date || row.DATE || row.created_at || row.updated_at)) {
           return true;
         }
-
         if (isCurrentMonthByDateValue(row.period)) {
           return true;
         }
-
         const monthValue = row.month ?? row.month_name ?? row.month_label ?? row.month_no ?? row.period;
         const yearValue = row.year ?? row.year_no;
-
         if (monthValue != null && yearValue != null) {
           const yearNum = Number.parseInt(String(yearValue), 10);
           const monthRaw = String(monthValue).trim().toLowerCase();
           const monthNum = Number.parseInt(monthRaw, 10);
-
           if (!Number.isNaN(monthNum) && !Number.isNaN(yearNum)) {
             return monthNum === currentMonth && yearNum === currentYear;
           }
-
           const monthNames = [
             "january", "february", "march", "april", "may", "june",
             "july", "august", "september", "october", "november", "december",
@@ -386,18 +348,14 @@ export default function Dashboard() {
             return yearNum === currentYear && (monthRaw === monthNames[currentMonth - 1] || monthRaw === monthShort);
           }
         }
-
         return false;
       };
-
       const visibleStudents = (studentsData || []).filter(
         (student: any) => String(student.member_type || "member").toLowerCase() !== "admin"
       );
-
       const visibleEnrollmentSet = new Set(
         visibleStudents.map((student: any) => String(student.enrollment_no || "").trim()).filter(Boolean)
       );
-
       const nameMap: Record<string, string> = {};
       const fieldMap: Record<string, string> = {};
       visibleStudents.forEach((student: any) => {
@@ -406,14 +364,11 @@ export default function Dashboard() {
         nameMap[en] = String(student.student_name || "").trim();
         fieldMap[en] = String(student.field || "").trim();
       });
-
       const scoreMap: Record<string, number> = {};
       (statsData || []).forEach((row: any) => {
         if (!isCurrentMonthRow(row)) return;
-
         const enrollment_no = String(row.enrollment_no || row.enroll_no || row["enroll no."] || "").trim();
         if (!enrollment_no || !visibleEnrollmentSet.has(enrollment_no)) return;
-
         const scoreValue =
           row.monthly_points ??
           row.month_points ??
@@ -427,7 +382,6 @@ export default function Dashboard() {
         const score = Number(scoreValue) || 0;
         scoreMap[enrollment_no] = (scoreMap[enrollment_no] || 0) + score;
       });
-
       const rows = Object.entries(scoreMap)
         .map(([enrollment_no, score]) => ({
           enrollment_no,
@@ -437,7 +391,6 @@ export default function Dashboard() {
         }))
         .sort((a, b) => b.score - a.score)
         .slice(0, 5);
-
       setLeaderboard(rows);
     } catch (error: any) {
       console.error("Error fetching leaderboard:", error);
@@ -455,10 +408,7 @@ export default function Dashboard() {
   const fetchGenderData = async () => {
     try {
       setGenderLoading(true);
-      const { data, error } = await supabase
-        .from("students_details")
-        .select("gender,semester,member_type");
-      if (error) return;
+      const data = await prisma.students_details.findMany({ select: { gender: true, semester: true, member_type: true } });
       const rows = (data || [])
         .filter((row: any) => String(row.member_type || "member").toLowerCase() !== "admin")
         .map((r: any) => ({
@@ -466,7 +416,7 @@ export default function Dashboard() {
           semester: r.semester ? String(r.semester).trim() : "Unknown",
         }));
       setGenderRawData(rows);
-      const sems = Array.from(new Set(rows.map((r) => r.semester))).sort();
+      const sems = Array.from(new Set(rows.map((r) => String(r.semester)))).sort() as string[];
       setGenderSemesters(sems);
     } catch (e) {
       console.error("Gender data error:", e);
@@ -478,29 +428,21 @@ export default function Dashboard() {
   const fetchPerformanceAnalytics = async () => {
     try {
       setAnalyticsLoading(true);
-      const [{ data: scoresData, error: scoresError }, { data: attendanceData, error: attError }, { data: studentsData, error: stuError }] = await Promise.all([
-        supabase.from("debate_scores").select("enrollment_no,points,date"),
-        supabase.from("attendance").select("enrollment_no,hours,date"),
-        supabase.from("students_details").select("enrollment_no,student_name,member_type"),
+      const [scoresData, attendanceData, studentsData] = await Promise.all([
+        prisma.debate_scores.findMany({ select: { enrollment_no: true, points: true, date: true } }),
+        prisma.attendance.findMany({ select: { enrollment_no: true, hours: true, date: true } }),
+        prisma.students_details.findMany({ select: { enrollment_no: true, student_name: true, member_type: true } }),
       ]);
-
-      if (scoresError || attError || stuError) {
-        throw scoresError || attError || stuError;
-      }
-
       const visibleStudents = (studentsData || []).filter(
         (student: any) => String(student.member_type || "member").toLowerCase() !== "admin"
       );
-
       const visibleEnrollmentSet = new Set(
         visibleStudents.map((student: any) => student.enrollment_no).filter(Boolean)
       );
-
       const nameMap: Record<string, string> = {};
       visibleStudents.forEach((student: any) => {
         nameMap[student.enrollment_no] = student.student_name;
       });
-
       const scoreMap: Record<string, number> = {};
       (scoresData || []).forEach((row: any) => {
         const enrollNo = row.enrollment_no || "";
@@ -509,7 +451,6 @@ export default function Dashboard() {
           scoreMap[enrollNo] = (scoreMap[enrollNo] || 0) + points;
         }
       });
-
       const hoursMap: Record<string, number> = {};
       (attendanceData || []).forEach((row: any) => {
         const enrollNo = row.enrollment_no || "";
@@ -518,7 +459,6 @@ export default function Dashboard() {
           hoursMap[enrollNo] = (hoursMap[enrollNo] || 0) + hours;
         }
       });
-
       const scoreTop5 = Object.entries(scoreMap)
         .sort(([, a], [, b]) => b - a)
         .slice(0, 5)
@@ -527,7 +467,6 @@ export default function Dashboard() {
           const shortName = fullName.split(" ").slice(0, 2).join(" ");
           return { name: shortName, score: Math.round(score) };
         });
-
       const attendanceTop5 = Object.entries(hoursMap)
         .sort(([, a], [, b]) => b - a)
         .slice(0, 5)
@@ -536,10 +475,8 @@ export default function Dashboard() {
           const shortName = fullName.split(" ").slice(0, 2).join(" ");
           return { name: shortName, hours: Number(hours.toFixed(1)) };
         });
-
       setTopScoreChart(scoreTop5);
       setTopAttendanceChart(attendanceTop5);
-
       const monthKeys: string[] = [];
       const monthLabels: Record<string, string> = {};
       const today = new Date();
@@ -549,12 +486,10 @@ export default function Dashboard() {
         monthKeys.push(key);
         monthLabels[key] = d.toLocaleDateString("en-US", { month: "short", year: "2-digit" });
       }
-
       const trendMap: Record<string, { score: number; hours: number }> = {};
       monthKeys.forEach((key) => {
         trendMap[key] = { score: 0, hours: 0 };
       });
-
       (scoresData || []).forEach((row: any) => {
         const enrollNo = row.enrollment_no || "";
         const date = row.date ? String(row.date) : "";
@@ -563,7 +498,6 @@ export default function Dashboard() {
           trendMap[key].score += Number(row.points) || 0;
         }
       });
-
       (attendanceData || []).forEach((row: any) => {
         const enrollNo = row.enrollment_no || "";
         const date = row.date ? String(row.date) : "";
@@ -572,21 +506,18 @@ export default function Dashboard() {
           trendMap[key].hours += Number(row.hours) || 0;
         }
       });
-
       const trendRows: MonthlyTrendEntry[] = monthKeys.map((key) => ({
         month: monthLabels[key],
         score: Math.round(trendMap[key].score),
         hours: Number(trendMap[key].hours.toFixed(1)),
       }));
       setMonthlyTrendChart(trendRows);
-
       const scoreBandCounts = {
         "0-50": 0,
         "51-100": 0,
         "101-150": 0,
         "151+": 0,
       };
-
       visibleStudents.forEach((student: any) => {
         const total = Number(scoreMap[student.enrollment_no] || 0);
         if (total <= 50) scoreBandCounts["0-50"] += 1;
@@ -594,7 +525,6 @@ export default function Dashboard() {
         else if (total <= 150) scoreBandCounts["101-150"] += 1;
         else scoreBandCounts["151+"] += 1;
       });
-
       const bands: ScoreBandEntry[] = [
         { name: "0-50", value: scoreBandCounts["0-50"], color: "#94a3b8" },
         { name: "51-100", value: scoreBandCounts["51-100"], color: "#2dd4bf" },
@@ -602,7 +532,6 @@ export default function Dashboard() {
         { name: "151+", value: scoreBandCounts["151+"], color: "#115e59" },
       ];
       setScoreBandChart(bands.filter((b) => b.value > 0));
-
       const totalVisibleStudents = visibleStudents.length || 1;
       const totalScore = Object.values(scoreMap).reduce((sum, v) => sum + v, 0);
       const totalHours = Object.values(hoursMap).reduce((sum, v) => sum + v, 0);
@@ -628,19 +557,11 @@ export default function Dashboard() {
   const fetchActivities = async () => {
     try {
       setActivitiesLoading(true);
-      const { data, error } = await supabase
-        .from('activities')
-        .select('*')
-        .order('date', { ascending: false })
-        .limit(5);
-
-      if (error) throw error;
-      
-      const sortedData = (data || []).sort((a, b) => {
-        return new Date(b.date).getTime() - new Date(a.date).getTime();
+      const data = await prisma.activities.findMany({
+        orderBy: { date: "desc" },
+        take: 5,
       });
-      
-      setActivities(sortedData);
+      setActivities(data || []);
     } catch (error: any) {
       console.error('Error fetching activities:', error);
       setActivities([]);

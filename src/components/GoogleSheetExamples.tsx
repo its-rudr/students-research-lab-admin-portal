@@ -112,44 +112,44 @@ export function MultipleSheetExample() {
 }
 
 /**
- * Example: Syncing Google Sheets to Supabase
+ * Example: Syncing Google Sheets to Database (Prisma/Neon)
  */
-
-import { supabase } from '@/lib/supabaseClient';
 import { useToast } from '@/hooks/use-toast';
+import { syncSheetToTable } from '@/lib/googleSheetsSync';
 
-export function SyncSheetToSupabase() {
+export function SyncSheetToDatabase() {
   const [syncing, setSyncing] = useState(false);
   const { toast } = useToast();
-  const { data, fetchData } = useGoogleSheet({ autoFetch: false });
+  const { fetchData } = useGoogleSheet({ autoFetch: false });
 
   const handleSync = async () => {
     try {
       setSyncing(true);
-      
       // Fetch fresh data from Google Sheets
       const sheetData = await fetchData();
-      
-      // Transform data if needed
-      const transformedData = sheetData.map(row => ({
-        name: row['Name'],
-        email: row['Email'],
-        // Map other fields...
-      }));
-      
-      // Clear existing data (optional)
-      await supabase.from('students').delete().neq('id', 0);
-      
-      // Insert new data
-      const { error } = await supabase
-        .from('students')
-        .insert(transformedData);
-      
-      if (error) throw error;
-      
+      // Call backend sync logic (assumes Students sheet)
+      const result = await syncSheetToTable({
+        sheetRange: 'Students',
+        prismaTable: 'students_details',
+        uniqueKey: 'enrollment_no',
+        columnMapping: {
+          'Name': 'student_name',
+          'Enrollment No': 'enrollment_no',
+          'Email': 'email',
+          'Contact': 'contact_no',
+          'Department': 'department',
+          'Institute': 'institute_name',
+          'Semester': 'semester',
+          'Division': 'division',
+          'Batch': 'batch',
+          'Gender': 'gender',
+          'Member Type': 'member_type',
+        },
+      });
+      if (!result.success) throw new Error(result.errors.join(', '));
       toast({
         title: 'Success',
-        description: `Synced ${transformedData.length} records to database`,
+        description: `Synced ${result.inserted + result.updated} records to database`,
       });
     } catch (error: any) {
       toast({

@@ -6,12 +6,12 @@ import { Input } from "@/components/ui/input";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { supabase } from "@/lib/supabaseClient";
+// import prisma from "@/lib/prismaClient"; // Removed: Prisma should not be used in React components
 import { useToast } from "@/hooks/use-toast";
 import StudentAvatar from "@/components/StudentAvatar";
 import { hasWriteAccess } from "@/lib/auth";
 
-// Define the student type based on your Supabase table structure
+// Define the student type based on your database table structure
 interface Student {
   id: number;
   student_name: string;
@@ -49,7 +49,7 @@ export default function Students() {
   const { toast } = useToast();
   const canEdit = hasWriteAccess();
 
-  // Fetch students from Supabase
+  // Fetch students from API
   useEffect(() => {
     fetchStudents();
   }, []);
@@ -57,29 +57,26 @@ export default function Students() {
   const fetchStudents = async () => {
     try {
       setLoading(true);
-      const { data, error } = await supabase
-        .from('students_details')
-        .select('*');
-
-      if (error) throw error;
+      const res = await fetch("/api/students");
+      if (!res.ok) throw new Error("Failed to fetch students");
+      const data = await res.json();
       const visibleStudents = (data || []).filter(
         (row: any) => String(row.member_type || "member").toLowerCase() !== "admin"
       );
       setStudents(visibleStudents);
     } catch (error: any) {
-      console.error('Supabase error:', error);
       toast({
         variant: "destructive",
         title: "Error fetching students",
         description: error.message,
       });
-      setStudents([]); // Set empty array on error so page still renders
+      setStudents([]);
     } finally {
       setLoading(false);
     }
   };
 
-  // Add new student
+  // Add new student via API
   const handleAddStudent = async () => {
     if (!canEdit) {
       toast({
@@ -89,16 +86,15 @@ export default function Students() {
       });
       return;
     }
-
     try {
-      const { data, error } = await supabase
-        .from('students_details')
-        .insert([formData])
-        .select();
-
-      if (error) throw error;
-
-      setStudents([data[0], ...students]);
+      const res = await fetch("/api/students", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(formData),
+      });
+      if (!res.ok) throw new Error("Failed to add student");
+      const data = await res.json();
+      setStudents([data, ...students]);
       setOpen(false);
       setFormData({
         student_name: "",
@@ -113,7 +109,6 @@ export default function Students() {
         gender: "male",
         member_type: "member",
       });
-      
       toast({
         title: "Student added",
         description: "New student has been added successfully.",
@@ -138,17 +133,12 @@ export default function Students() {
 
   return (
     <div className="space-y-4 sm:space-y-5 max-w-7xl">
-      {/* Toolbar */}
-      <div className="flex flex-col gap-3 items-start sm:flex-row sm:items-center sm:justify-between">
-        <div className="relative w-full sm:w-80">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-          <Input
-            placeholder="Search students..."
-            className="pl-9 rounded-xl border-border bg-card text-sm"
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-      import prisma from "@/lib/prismaClient";
-        </div>
+      <Input
+        placeholder="Search students..."
+        className="pl-9 rounded-xl border-border bg-card text-sm"
+        value={search}
+        onChange={(e) => setSearch(e.target.value)}
+      />
         <div className="flex gap-2 w-full sm:w-auto">
           <Button variant="outline" size="sm" className="rounded-xl gap-1.5 flex-1 sm:flex-none">
             <Filter className="w-3.5 h-3.5" />
@@ -195,13 +185,6 @@ export default function Students() {
                     onChange={(e) => setFormData({ ...formData, email: e.target.value })}
                   />
                 </div>
-        const fetchStudents = async () => {
-          setLoading(true);
-          try {
-            const data = await prisma.students_details.findMany({ select: { enrollment_no: true, student_name: true, member_type: true, photo_url: true } });
-                    onChange={(e) => setFormData({ ...formData, contact_no: e.target.value })}
-                  />
-                </div>
                 <div className="space-y-1.5">
                   <Label>Institute Name</Label>
                   <Input 
@@ -229,12 +212,12 @@ export default function Students() {
                       value={formData.semester}
                       onChange={(e) => setFormData({ ...formData, semester: e.target.value })}
                     />
-            const data = await prisma.students_details.create({ data: formData });
-                      placeholder="e.g. A" 
-                      className="rounded-xl"
-                      value={formData.division}
-                      onChange={(e) => setFormData({ ...formData, division: e.target.value })}
-                    />
+            <Input
+              placeholder="e.g. A" 
+              className="rounded-xl"
+              value={formData.division}
+              onChange={(e) => setFormData({ ...formData, division: e.target.value })}
+            />
                   </div>
                   <div className="space-y-1.5">
                     <Label>Batch</Label>
@@ -281,8 +264,9 @@ export default function Students() {
           </Dialog>
           )}
         </div>
-      </div>
-      {!canEdit && <p className="text-xs text-muted-foreground">You have read-only access. Only admin can add students.</p>}
+      {!canEdit && (
+        <p className="text-xs text-muted-foreground">You have read-only access. Only admin can add students.</p>
+      )}
 
       {/* Loading State */}
       {loading && (
