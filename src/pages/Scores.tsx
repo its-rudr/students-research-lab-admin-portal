@@ -60,8 +60,8 @@ export default function Scores() {
     const fetchScores = async () => {
       setLoading(true);
       setFetchError("");
-      // Fetch debate scores
-      const { data: scoresData, error: scoresError } = await supabase.from("debate_scores").select();
+      // Fetch scores from leaderboard_stats
+      const { data: scoresData, error: scoresError } = await supabase.from("leaderboard_stats").select();
       if (scoresError || !scoresData) {
         setFetchError(scoresError?.message || "Failed to read score records from database.");
         setScores([]);
@@ -97,31 +97,31 @@ export default function Scores() {
       const targetMonth = previousMonthDate.getMonth() + 1;
       const targetYear = previousMonthDate.getFullYear();
 
+      // Use period column for month filtering
       const isTargetMonth = (value: any) => {
-        const dateStr = String(value || "").trim();
-        if (!dateStr) return false;
-
-        const monthPad = String(targetMonth).padStart(2, "0");
-        if (
-          dateStr.includes(`${targetYear}-${monthPad}`) ||
-          dateStr.includes(`${monthPad}/${targetYear}`) ||
-          dateStr.includes(`${targetMonth}/${targetYear}`)
-        ) {
-          return true;
-        }
-
-        const parsed = new Date(dateStr);
-        return !Number.isNaN(parsed.getTime()) && parsed.getMonth() + 1 === targetMonth && parsed.getFullYear() === targetYear;
+        const periodStr = String(value || "").trim().toLowerCase();
+        if (!periodStr) return false;
+        // Example period: "Mar 2026", "Feb 2026"
+        const monthNames = [
+          "january", "february", "march", "april", "may", "june",
+          "july", "august", "september", "october", "november", "december"
+        ];
+        const targetMonthName = monthNames[targetMonth - 1];
+        const targetMonthShort = targetMonthName.slice(0, 3);
+        return (
+          periodStr.includes(`${targetMonthShort} ${targetYear}`.toLowerCase()) ||
+          periodStr.includes(`${targetMonthName} ${targetYear}`.toLowerCase())
+        );
       };
 
       const scoreMap: Record<string, number> = {};
       const merged = scoresData.map((row: any) => {
-        if (!isTargetMonth(row.date || row.Date || row.DATE)) {
+        if (!isTargetMonth(row.period)) {
           return null;
         }
 
         const enrollNo = row.enrollment_no || row["enroll no."] || row.enroll_no || "";
-        const scoreValue = row.total_points ?? row.points ?? row.score ?? 0;
+        const scoreValue = row.score ?? row.debate_score ?? row.total_points ?? row.points ?? 0;
         const score = Number(scoreValue) || 0;
 
         if (enrollNo) {

@@ -10,10 +10,10 @@ import {
 } from "recharts";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { getStoredUser } from "@/lib/auth";
+
+
 import { Sparkles, ArrowUpRight } from "lucide-react";
-        {/* Monthly Attendance, Monthly Score, and Total Score cards hidden for all users */}
-  hours: number;
-}
+// Monthly Attendance, Monthly Score, and Total Score cards hidden for all users
 
 interface ScoreBandEntry {
   name: string;
