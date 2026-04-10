@@ -2,7 +2,7 @@ import { useState, useEffect } from "react";
 import { motion } from "framer-motion";
 import { Users, CalendarCheck, BookOpen, Trophy, TrendingUp, Loader2, Calendar, BarChart2, PieChart as PieIcon, Activity, Clock } from "lucide-react";
 import StatCard from "@/components/StatCard";
-import { supabase } from "@/lib/supabaseClient";
+import prisma from "@/lib/prismaClient";
 import { useToast } from "@/hooks/use-toast";
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend,
@@ -93,12 +93,8 @@ export default function Dashboard() {
   const fetchTotalStudents = async () => {
     try {
       setStudentsCountLoading(true);
-      const { data, error } = await supabase
-        .from("students_details")
-        .select("member_type");
-
-      if (error) throw error;
-      const visibleStudents = (data || []).filter(
+      const all = await prisma.students_details.findMany({ select: { member_type: true } });
+      const visibleStudents = (all || []).filter(
         (row: any) => String(row.member_type || "member").toLowerCase() !== "admin"
       );
       setTotalStudents(visibleStudents.length);

@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { supabase } from "../lib/supabaseClient";
+import prisma from "@/lib/prismaClient";
 import { motion, AnimatePresence } from "framer-motion";
 import { Trophy } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -45,13 +45,13 @@ export default function Scores() {
       setAdding(false);
       return;
     }
-    const { error } = await supabase.from("debate_scores").insert(rows);
-    if (error) {
-      setAddError(error.message);
-    } else {
+    try {
+      await prisma.debate_scores.createMany({ data: rows });
       setShowAddForm(false);
       setAddScores({});
       setAddDate("");
+    } catch (error: any) {
+      setAddError(error.message || "Failed to add scores.");
     }
     setAdding(false);
   };
@@ -60,22 +60,9 @@ export default function Scores() {
     const fetchScores = async () => {
       setLoading(true);
       setFetchError("");
-      // Fetch scores from leaderboard_stats
-      const { data: scoresData, error: scoresError } = await supabase.from("leaderboard_stats").select();
-      if (scoresError || !scoresData) {
-        setFetchError(scoresError?.message || "Failed to read score records from database.");
-        setScores([]);
-        setLoading(false);
-        return;
-      }
-      // Fetch student details
-      const { data: studentsData, error: studentsError } = await supabase.from("students_details").select("enrollment_no,student_name,member_type");
-      if (studentsError || !studentsData) {
-        setFetchError(studentsError?.message || "Failed to read student records from database.");
-        setScores([]);
-        setLoading(false);
-        return;
-      }
+      try {
+        const scoresData = await prisma.leaderboard_stats.findMany();
+        const studentsData = await prisma.students_details.findMany({ select: { enrollment_no: true, student_name: true, member_type: true } });
       const visibleStudents = studentsData.filter(
         (stu: any) => String(stu.member_type || "member").toLowerCase() !== "admin"
       );
@@ -166,6 +153,10 @@ export default function Scores() {
 
       const leaderboardRows = aggregated.length > 0 ? aggregated : fallbackMerged;
       setScores(leaderboardRows.sort((a, b) => b.score - a.score).slice(0, 5));
+      } catch (err: any) {
+        setFetchError(err.message || "Failed to fetch scores.");
+        setScores([]);
+      }
       setLoading(false);
     };
     fetchScores();

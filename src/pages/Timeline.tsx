@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { motion } from "framer-motion";
 import { Calendar, Loader2, Pencil, Plus, Trash2 } from "lucide-react";
-import { supabase } from "@/lib/supabaseClient";
+import prisma from "@/lib/prismaClient";
 import { useToast } from "@/hooks/use-toast";
 import { hasWriteAccess } from "@/lib/auth";
 import { Button } from "@/components/ui/button";
@@ -48,14 +48,13 @@ export default function Timeline() {
   const fetchTimelineEntries = async () => {
     try {
       setLoading(true);
-      const { data, error } = await supabase
-        .from("timeline_entries")
-        .select("*")
-        .eq("is_active", true)
-        .order("display_order", { ascending: true })
-        .order("id", { ascending: true });
-
-      if (error) throw error;
+      const data = await prisma.timeline_entries.findMany({
+        where: { is_active: true },
+        orderBy: [
+          { display_order: "asc" },
+          { id: "asc" }
+        ]
+      });
       setEntries(data || []);
     } catch (error: any) {
       toast({
@@ -90,28 +89,18 @@ export default function Timeline() {
 
     try {
       const orderValue = Number.parseInt(formData.display_order, 10);
-      const { error } = await supabase.from("timeline_entries").insert([
-        {
+      await prisma.timeline_entries.create({
+        data: {
           step: formData.step.trim(),
           title: formData.title.trim(),
           description: formData.description.trim(),
           display_order: Number.isNaN(orderValue) ? entries.length + 1 : orderValue,
-        },
-      ]);
-
-      if (error) throw error;
-
-      toast({
-        title: "Timeline entry added",
+          is_active: true,
+        }
       });
-
+      toast({ title: "Timeline entry added" });
       setOpen(false);
-      setFormData({
-        step: "",
-        title: "",
-        description: "",
-        display_order: "",
-      });
+      setFormData({ step: "", title: "", description: "", display_order: "" });
       fetchTimelineEntries();
     } catch (error: any) {
       toast({
@@ -133,12 +122,8 @@ export default function Timeline() {
     }
 
     try {
-      const { error } = await supabase.from("timeline_entries").delete().eq("id", id);
-      if (error) throw error;
-
-      toast({
-        title: "Timeline entry deleted",
-      });
+      await prisma.timeline_entries.delete({ where: { id } });
+      toast({ title: "Timeline entry deleted" });
       fetchTimelineEntries();
     } catch (error: any) {
       toast({
@@ -192,22 +177,16 @@ export default function Timeline() {
 
     try {
       const orderValue = Number.parseInt(editFormData.display_order, 10);
-      const { error } = await supabase
-        .from("timeline_entries")
-        .update({
+      await prisma.timeline_entries.update({
+        where: { id: editingEntry.id },
+        data: {
           step: editFormData.step.trim(),
           title: editFormData.title.trim(),
           description: editFormData.description.trim(),
           display_order: Number.isNaN(orderValue) ? editingEntry.display_order : orderValue,
-        })
-        .eq("id", editingEntry.id);
-
-      if (error) throw error;
-
-      toast({
-        title: "Timeline entry updated",
+        }
       });
-
+      toast({ title: "Timeline entry updated" });
       setEditOpen(false);
       setEditingEntry(null);
       fetchTimelineEntries();

@@ -6,7 +6,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from 
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
-import { supabase } from "@/lib/supabaseClient";
+import prisma from "@/lib/prismaClient";
 import { useToast } from "@/hooks/use-toast";
 import { hasWriteAccess } from "@/lib/auth";
 
@@ -82,38 +82,16 @@ export default function Activities() {
         .order('date', { ascending: false });
 
       if (error) throw error;
-      
-      // Additional client-side sorting to ensure newest first
-      const sortedData = (data || []).sort((a, b) => {
-        const bDate = parseActivityDate(b.date);
-        const aDate = parseActivityDate(a.date);
-        const bTime = bDate ? bDate.getTime() : Number.NEGATIVE_INFINITY;
-        const aTime = aDate ? aDate.getTime() : Number.NEGATIVE_INFINITY;
-        return bTime - aTime;
-      });
-      
-      setActivities(sortedData);
-    } catch (error: any) {
-      console.error('Supabase error:', error);
-      toast({
-        variant: "destructive",
-        title: "Error fetching activities",
-        description: error.message,
-      });
-      setActivities([]);
-    } finally {
+    const fetchActivities = async () => {
+      setLoading(true);
+      try {
+        const data = await prisma.activities.findMany({ select: { id: true, name: true, description: true, date: true } });
+        setActivities(data || []);
+      } catch (error) {
+        setActivities([]);
+      }
       setLoading(false);
-    }
-  };
-
-  // Add new activity
-  const handleAddActivity = async () => {
-    if (!canEdit) {
-      toast({
-        variant: "destructive",
-        title: "Read-only access",
-        description: "Only admin can add activities.",
-      });
+    };
       return;
     }
 

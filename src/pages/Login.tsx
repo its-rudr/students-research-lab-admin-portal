@@ -9,7 +9,7 @@ import { Label } from '../components/ui/label';
 import { Mail, Lock, Eye, EyeOff } from 'lucide-react';
 import { useToast } from '../hooks/use-toast';
 import { isAuthenticated, saveSession } from '../lib/auth';
-import { supabase } from '../lib/supabaseClient';
+import prisma from '../lib/prismaClient';
 
 export default function Login() {
   const [email, setEmail] = useState("");
@@ -34,65 +34,36 @@ export default function Login() {
       const normalizedEmail = loginId.toLowerCase();
       const passwordValue = password.trim();
 
-      let authResult = await supabase
-        .from("authorization")
-        .select("*")
-        .eq("user_ID", loginId)
-        .limit(1);
 
-      if (authResult.error?.message?.toLowerCase().includes("column authorization.user_id does not exist")) {
-        authResult = await supabase
-          .from("authorization")
-          .select("*")
-          .eq("user_id", loginId)
-          .limit(1);
-      }
+      // Try to find user by user_ID, user_id, email, or username
+      let matchedAuth = await prisma.authorization.findFirst({
+        where: {
+          OR: [
+            { user_ID: loginId },
+            { user_id: loginId },
+            { email: normalizedEmail },
+            { username: normalizedEmail },
+          ],
+        },
+      });
 
-      if (authResult.error?.message?.toLowerCase().includes("column authorization.user_id does not exist")) {
-        authResult = await supabase
-          .from("authorization")
-          .select("*")
-          .eq("email", normalizedEmail)
-          .limit(1);
-      }
-
-      if (authResult.error?.message?.toLowerCase().includes("column authorization.email does not exist")) {
-        authResult = await supabase
-          .from("authorization")
-          .select("*")
-          .eq("username", normalizedEmail)
-          .limit(1);
-      }
-
-      if (authResult.error) {
-        throw authResult.error;
-      }
-
-      const matchedAuth = authResult.data?.[0];
       if (!matchedAuth) {
         throw new Error("No account found for this email address.");
       }
 
+
       const storedPassword = String(
         matchedAuth.password ?? matchedAuth.login_password ?? matchedAuth.pass ?? matchedAuth.pwd ?? ""
       ).trim();
-
       if (!storedPassword || storedPassword !== passwordValue) {
         throw new Error("Invalid password.");
       }
 
       const profileEmail = String(matchedAuth.email || normalizedEmail).trim().toLowerCase();
-      const { data: profileData, error: profileError } = await supabase
-        .from("students_details")
-        .select("student_name,enrollment_no")
-        .eq("email", profileEmail)
-        .limit(1);
-
-      if (profileError) {
-        throw profileError;
-      }
-
-      const profile = profileData?.[0];
+      const profile = await prisma.students_details.findFirst({
+        where: { email: profileEmail },
+        select: { student_name: true, enrollment_no: true },
+      });
       const memberType = String(matchedAuth.member_type || matchedAuth.role || "member").toLowerCase();
       const isAdminLogin = normalizedEmail === "adminsrl@gmail.com" || String(matchedAuth.user_ID || "").trim().toLowerCase() === "adminsrl@gmail.com";
       const role = isAdminLogin || memberType === "admin" ? "admin" : "member";

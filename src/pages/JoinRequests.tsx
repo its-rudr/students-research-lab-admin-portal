@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { supabase } from "@/lib/supabaseClient";
+import prisma from "@/lib/prismaClient";
 import { useToast } from "@/hooks/use-toast";
 import { Button } from "@/components/ui/button";
 import { Loader2, Download } from "lucide-react";
@@ -43,19 +43,16 @@ export default function JoinRequests() {
 
   const fetchRows = async () => {
     setLoading(true);
-    const { data, error } = await supabase
-      .from("join_us")
-      .select("*")
-      .order("created_at", { ascending: false });
-    if (error) {
+    try {
+      const data = await prisma.join_us.findMany({ orderBy: { created_at: "desc" } });
+      setRows(data || []);
+    } catch (error: any) {
       toast({
         variant: "destructive",
         title: "Error fetching join requests",
         description: error.message,
       });
       setRows([]);
-    } else {
-      setRows(data || []);
     }
     setLoading(false);
   };
@@ -87,29 +84,23 @@ export default function JoinRequests() {
 
   // Accept handler
   const handleAccept = async (id: number) => {
-    const { error } = await supabase
-      .from("join_us")
-      .update({ status: "accepted" })
-      .eq("id", id);
-    if (error) {
-      toast({ variant: "destructive", title: "Error accepting request", description: error.message });
-    } else {
+    try {
+      await prisma.join_us.update({ where: { id }, data: { status: "accepted" } });
       toast({ variant: "success", title: "Request accepted" });
       fetchRows();
+    } catch (error: any) {
+      toast({ variant: "destructive", title: "Error accepting request", description: error.message });
     }
   };
 
   // Reject handler
   const handleReject = async (id: number) => {
-    const { error } = await supabase
-      .from("join_us")
-      .update({ status: "rejected" })
-      .eq("id", id);
-    if (error) {
-      toast({ variant: "destructive", title: "Error rejecting request", description: error.message });
-    } else {
+    try {
+      await prisma.join_us.update({ where: { id }, data: { status: "rejected" } });
       toast({ variant: "success", title: "Request rejected" });
       fetchRows();
+    } catch (error: any) {
+      toast({ variant: "destructive", title: "Error rejecting request", description: error.message });
     }
   };
 

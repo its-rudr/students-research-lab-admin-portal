@@ -147,7 +147,7 @@ export default function Students() {
             className="pl-9 rounded-xl border-border bg-card text-sm"
             value={search}
             onChange={(e) => setSearch(e.target.value)}
-          />
+      import prisma from "@/lib/prismaClient";
         </div>
         <div className="flex gap-2 w-full sm:w-auto">
           <Button variant="outline" size="sm" className="rounded-xl gap-1.5 flex-1 sm:flex-none">
@@ -195,12 +195,10 @@ export default function Students() {
                     onChange={(e) => setFormData({ ...formData, email: e.target.value })}
                   />
                 </div>
-                <div className="space-y-1.5">
-                  <Label>Contact Number</Label>
-                  <Input 
-                    placeholder="e.g. +91 98765 43210" 
-                    className="rounded-xl"
-                    value={formData.contact_no}
+        const fetchStudents = async () => {
+          setLoading(true);
+          try {
+            const data = await prisma.students_details.findMany({ select: { enrollment_no: true, student_name: true, member_type: true, photo_url: true } });
                     onChange={(e) => setFormData({ ...formData, contact_no: e.target.value })}
                   />
                 </div>
@@ -231,10 +229,7 @@ export default function Students() {
                       value={formData.semester}
                       onChange={(e) => setFormData({ ...formData, semester: e.target.value })}
                     />
-                  </div>
-                  <div className="space-y-1.5">
-                    <Label>Division</Label>
-                    <Input 
+            const data = await prisma.students_details.create({ data: formData });
                       placeholder="e.g. A" 
                       className="rounded-xl"
                       value={formData.division}

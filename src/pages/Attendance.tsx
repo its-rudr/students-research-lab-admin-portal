@@ -1,6 +1,6 @@
 
 import { useState, useEffect } from "react";
-import { supabase } from "../lib/supabaseClient";
+import prisma from "../lib/prismaClient";
 import { Check, X } from "lucide-react";
 import { Button } from "../components/ui/button";
 import { motion } from "framer-motion";
@@ -22,16 +22,14 @@ export default function Attendance() {
   // Fetch all available attendance dates on mount
   useEffect(() => {
     const fetchDates = async () => {
-      const { data, error } = await supabase
-        .from("attendance")
-        .select("date")
-        .order("date", { ascending: false });
-      if (!error && data && data.length > 0) {
-        // Remove duplicates and sort descending
-        const uniqueDates = Array.from(new Set(data.map((row: any) => row.date))).sort((a, b) => b.localeCompare(a));
-        setAllDates(uniqueDates);
-        setAttendanceDate(uniqueDates[0]);
-      }
+      // Fetch all attendance dates from Prisma
+      const all = await prisma.attendance.findMany({
+        select: { date: true },
+        orderBy: { date: "desc" },
+      });
+      const uniqueDates = Array.from(new Set(all.map((row: any) => row.date))).sort((a, b) => b.localeCompare(a));
+      setAllDates(uniqueDates);
+      setAttendanceDate(uniqueDates[0]);
     };
     fetchDates();
   }, []);
@@ -41,18 +39,15 @@ export default function Attendance() {
     if (!attendanceDate) return;
     const fetchData = async () => {
       setLoading(true);
-      const { data: attData, error: attError } = await supabase
-        .from("attendance")
-        .select("enrollment_no,hours")
-        .eq("date", attendanceDate);
-      const { data: stuData, error: stuError } = await supabase
-        .from("students_details")
-        .select("enrollment_no,student_name,member_type");
-      if (attError || stuError) {
-        setStudents([]);
-        setLoading(false);
-        return;
-      }
+      // Fetch attendance for selected date
+      const attData = await prisma.attendance.findMany({
+        where: { date: attendanceDate },
+        select: { enrollment_no: true, hours: true },
+      });
+      // Fetch student details
+      const stuData = await prisma.students_details.findMany({
+        select: { enrollment_no: true, student_name: true, member_type: true },
+      });
       const stuMap: { [enrollment_no: string]: { name: string; initials: string; photo_url?: string } } = {};
       stuData
         .filter((student: any) => String(student.member_type || "member").toLowerCase() !== "admin")
@@ -111,14 +106,16 @@ export default function Attendance() {
       setAdding(false);
       return;
     }
-    const { error } = await supabase.from("attendance").insert(rows);
-    if (error) {
-      setAddError(error.message);
-    } else {
+    try {
+      for (const row of rows) {
+        await prisma.attendance.create({ data: row });
+      }
       setShowAddForm(false);
       setAddHours({});
       setAddDate("");
       setAttendanceDate(addDate);
+    } catch (error: any) {
+      setAddError(error.message);
     }
     setAdding(false);
   };

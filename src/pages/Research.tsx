@@ -9,7 +9,7 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
-import { supabase } from "@/lib/supabaseClient";
+import prisma from "@/lib/prismaClient";
 
 
 type ResearchProject = {
@@ -31,13 +31,11 @@ export default function Research() {
   useEffect(() => {
     const fetchProjects = async () => {
       setLoading(true);
-      const { data, error } = await supabase
-        .from("research_projects")
-        .select("id, title, description, team_image_url");
-      if (error) {
-        setProjects([]);
-      } else {
+      try {
+        const data = await prisma.research_projects.findMany({ select: { id: true, title: true, description: true, team_image_url: true } });
         setProjects(data || []);
+      } catch (error) {
+        setProjects([]);
       }
       setLoading(false);
     };
