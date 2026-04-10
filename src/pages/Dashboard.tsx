@@ -11,27 +11,7 @@ import {
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { getStoredUser } from "@/lib/auth";
 import { Sparkles, ArrowUpRight } from "lucide-react";
-
-interface LeaderboardEntry {
-  name: string;
-  score: number;
-  field: string;
-  enrollment_no: string;
-}
-
-interface TopScoreChartEntry {
-  name: string;
-  score: number;
-}
-
-interface TopAttendanceChartEntry {
-  name: string;
-  hours: number;
-}
-
-interface MonthlyTrendEntry {
-  month: string;
-  score: number;
+        {/* Monthly Attendance, Monthly Score, and Total Score cards hidden for all users */}
   hours: number;
 }
 
@@ -175,26 +155,10 @@ export default function Dashboard() {
         targetDate = today;
       }
 
-      // Only count students with attendance > 0
+      // Only count students with attendance > 0 (from leaderboard_stats)
       const presentSet = new Set(
         (filteredRows || [])
           .filter((row: any) => visibleEnrollmentSet.has(row.enrollment_no) && Number(row.attendance || 0) > 0)
-          .map((row: any) => row.enrollment_no)
-      );
-
-      const presentCount = presentSet.size;
-      const percent = totalStudents > 0 ? Math.round((presentCount / totalStudents) * 100) : 0;
-
-      setAttendancePercent(percent);
-      setAttendanceSubtitle(
-        targetDate === today
-          ? `${presentCount} of ${totalStudents} present`
-          : `${presentCount} of ${totalStudents} present (${targetDate})`
-      );
-
-      const presentSet = new Set(
-        (attendanceRows || [])
-          .filter((row: any) => visibleEnrollmentSet.has(row.enrollment_no) && Number(row.hours || 0) > 0)
           .map((row: any) => row.enrollment_no)
       );
 
@@ -358,7 +322,7 @@ export default function Dashboard() {
       setLoading(true);
 
       const [{ data: statsData, error: statsError }, { data: studentsData, error: studentsError }] = await Promise.all([
-        supabase.from("debate_scores").select("*"),
+        supabase.from("leaderboard_stats").select("*"),
         supabase.from("students_details").select("enrollment_no,student_name,member_type"),
       ]);
 
