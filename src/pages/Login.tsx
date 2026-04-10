@@ -9,7 +9,7 @@ import { Label } from '../components/ui/label';
 import { Mail, Lock, Eye, EyeOff } from 'lucide-react';
 import { useToast } from '../hooks/use-toast';
 import { isAuthenticated, saveSession } from '../lib/auth';
-import { supabase } from '../lib/supabaseClient';
+import { adminAPI, setAuthToken } from '../lib/adminApi';
 
 export default function Login() {
   const [email, setEmail] = useState("");
@@ -30,90 +30,36 @@ export default function Login() {
     setLoading(true);
 
     try {
-      const loginId = email.trim();
-      const normalizedEmail = loginId.toLowerCase();
-      const passwordValue = password.trim();
+      const loginEmail = email.trim();
+      const loginPassword = password.trim();
 
-      let authResult = await supabase
-        .from("authorization")
-        .select("*")
-        .eq("user_ID", loginId)
-        .limit(1);
+      // Call the admin login API
+      const response = await adminAPI.login(loginEmail, loginPassword);
 
-      if (authResult.error?.message?.toLowerCase().includes("column authorization.user_id does not exist")) {
-        authResult = await supabase
-          .from("authorization")
-          .select("*")
-          .eq("user_id", loginId)
-          .limit(1);
+      if (!response.success || !response.token) {
+        throw new Error(response.message || "Login failed");
       }
 
-      if (authResult.error?.message?.toLowerCase().includes("column authorization.user_id does not exist")) {
-        authResult = await supabase
-          .from("authorization")
-          .select("*")
-          .eq("email", normalizedEmail)
-          .limit(1);
-      }
+      // Save JWT token
+      setAuthToken(response.token);
 
-      if (authResult.error?.message?.toLowerCase().includes("column authorization.email does not exist")) {
-        authResult = await supabase
-          .from("authorization")
-          .select("*")
-          .eq("username", normalizedEmail)
-          .limit(1);
-      }
-
-      if (authResult.error) {
-        throw authResult.error;
-      }
-
-      const matchedAuth = authResult.data?.[0];
-      if (!matchedAuth) {
-        throw new Error("No account found for this email address.");
-      }
-
-      const storedPassword = String(
-        matchedAuth.password ?? matchedAuth.login_password ?? matchedAuth.pass ?? matchedAuth.pwd ?? ""
-      ).trim();
-
-      if (!storedPassword || storedPassword !== passwordValue) {
-        throw new Error("Invalid password.");
-      }
-
-      const profileEmail = String(matchedAuth.email || normalizedEmail).trim().toLowerCase();
-      const { data: profileData, error: profileError } = await supabase
-        .from("students_details")
-        .select("student_name,enrollment_no")
-        .eq("email", profileEmail)
-        .limit(1);
-
-      if (profileError) {
-        throw profileError;
-      }
-
-      const profile = profileData?.[0];
-      const memberType = String(matchedAuth.member_type || matchedAuth.role || "member").toLowerCase();
-      const isAdminLogin = normalizedEmail === "adminsrl@gmail.com" || String(matchedAuth.user_ID || "").trim().toLowerCase() === "adminsrl@gmail.com";
-      const role = isAdminLogin || memberType === "admin" ? "admin" : "member";
-      const enrollmentNo = String(matchedAuth.enrollment_no || profile?.enrollment_no || "").trim();
-      const displayName =
-        String(matchedAuth.student_name || matchedAuth.name || profile?.student_name || "").trim() || normalizedEmail;
-
+      // Save session data
+      const user = response.user;
       saveSession({
-        email: profileEmail,
-        name: displayName,
-        enrollmentNo,
-        role,
+        email: user.email,
+        name: user.name,
+        enrollmentNo: user.enrollmentNo,
+        role: "admin",
       });
 
       toast({
         title: "Login successful",
-        description: role === "admin" ? "Admin access enabled." : "Read-only member access enabled.",
+        description: "Admin access enabled.",
       });
 
-      navigate("/");
+      navigate("/", { replace: true });
     } catch (error: any) {
+      console.error("Login error:", error);
       toast({
         variant: "destructive",
         title: "Login failed",

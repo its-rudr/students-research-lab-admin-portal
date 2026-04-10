@@ -1,10 +1,10 @@
 import { useEffect, useState } from "react";
-import { supabase } from "@/lib/supabaseClient";
 import { useToast } from "@/hooks/use-toast";
 import { Button } from "@/components/ui/button";
 import { Loader2, Download } from "lucide-react";
 import { Navigate } from "react-router-dom";
 import { hasWriteAccess } from "@/lib/auth";
+import { adminAPI } from "@/lib/adminApi";
 // Excel and PDF export
 import * as XLSX from "xlsx";
 import jsPDF from "jspdf";
@@ -43,19 +43,21 @@ export default function JoinRequests() {
 
   const fetchRows = async () => {
     setLoading(true);
-    const { data, error } = await supabase
-      .from("join_us")
-      .select("*")
-      .order("created_at", { ascending: false });
-    if (error) {
+    try {
+      const response = await adminAPI.getJoinRequests();
+      
+      if (response.success && Array.isArray(response.data)) {
+        setRows(response.data);
+      } else {
+        setRows([]);
+      }
+    } catch (error: any) {
       toast({
         variant: "destructive",
         title: "Error fetching join requests",
         description: error.message,
       });
       setRows([]);
-    } else {
-      setRows(data || []);
     }
     setLoading(false);
   };
@@ -87,29 +89,37 @@ export default function JoinRequests() {
 
   // Accept handler
   const handleAccept = async (id: number) => {
-    const { error } = await supabase
-      .from("join_us")
-      .update({ status: "accepted" })
-      .eq("id", id);
-    if (error) {
-      toast({ variant: "destructive", title: "Error accepting request", description: error.message });
-    } else {
-      toast({ variant: "success", title: "Request accepted" });
-      fetchRows();
+    try {
+      const response = await adminAPI.updateJoinRequest(String(id), "accepted");
+      
+      if (response.success) {
+        toast({ title: "Request accepted" });
+        fetchRows();
+      }
+    } catch (error: any) {
+      toast({ 
+        variant: "destructive", 
+        title: "Error accepting request", 
+        description: error.message 
+      });
     }
   };
 
   // Reject handler
   const handleReject = async (id: number) => {
-    const { error } = await supabase
-      .from("join_us")
-      .update({ status: "rejected" })
-      .eq("id", id);
-    if (error) {
-      toast({ variant: "destructive", title: "Error rejecting request", description: error.message });
-    } else {
-      toast({ variant: "success", title: "Request rejected" });
-      fetchRows();
+    try {
+      const response = await adminAPI.updateJoinRequest(String(id), "rejected");
+      
+      if (response.success) {
+        toast({ title: "Request rejected" });
+        fetchRows();
+      }
+    } catch (error: any) {
+      toast({ 
+        variant: "destructive", 
+        title: "Error rejecting request", 
+        description: error.message 
+      });
     }
   };
 

@@ -1,7 +1,6 @@
 import { useEffect, useState } from "react";
 import { motion } from "framer-motion";
 import { Calendar, Loader2, Pencil, Plus, Trash2 } from "lucide-react";
-import { supabase } from "@/lib/supabaseClient";
 import { useToast } from "@/hooks/use-toast";
 import { hasWriteAccess } from "@/lib/auth";
 import { Button } from "@/components/ui/button";
@@ -9,6 +8,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from 
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
+import { adminAPI } from "@/lib/adminApi";
 
 interface TimelineEntry {
   id: number;
@@ -48,15 +48,16 @@ export default function Timeline() {
   const fetchTimelineEntries = async () => {
     try {
       setLoading(true);
-      const { data, error } = await supabase
-        .from("timeline_entries")
-        .select("*")
-        .eq("is_active", true)
-        .order("display_order", { ascending: true })
-        .order("id", { ascending: true });
+      const response = await adminAPI.getTimeline();
 
-      if (error) throw error;
-      setEntries(data || []);
+      if (response.success && Array.isArray(response.data)) {
+        const sorted = response.data.sort((a: any, b: any) => 
+          (a.display_order || 0) - (b.display_order || 0) || (a.id || 0) - (b.id || 0)
+        );
+        setEntries(sorted as TimelineEntry[]);
+      } else {
+        setEntries([]);
+      }
     } catch (error: any) {
       toast({
         variant: "destructive",
@@ -90,29 +91,27 @@ export default function Timeline() {
 
     try {
       const orderValue = Number.parseInt(formData.display_order, 10);
-      const { error } = await supabase.from("timeline_entries").insert([
-        {
-          step: formData.step.trim(),
-          title: formData.title.trim(),
-          description: formData.description.trim(),
-          display_order: Number.isNaN(orderValue) ? entries.length + 1 : orderValue,
-        },
-      ]);
-
-      if (error) throw error;
-
-      toast({
-        title: "Timeline entry added",
+      const response = await adminAPI.createTimelineEntry({
+        step: formData.step.trim(),
+        title: formData.title.trim(),
+        description: formData.description.trim(),
+        display_order: Number.isNaN(orderValue) ? entries.length + 1 : orderValue,
       });
 
-      setOpen(false);
-      setFormData({
-        step: "",
-        title: "",
-        description: "",
-        display_order: "",
-      });
-      fetchTimelineEntries();
+      if (response.success) {
+        toast({
+          title: "Timeline entry added",
+        });
+
+        setOpen(false);
+        setFormData({
+          step: "",
+          title: "",
+          description: "",
+          display_order: "",
+        });
+        fetchTimelineEntries();
+      }
     } catch (error: any) {
       toast({
         variant: "destructive",
@@ -133,13 +132,14 @@ export default function Timeline() {
     }
 
     try {
-      const { error } = await supabase.from("timeline_entries").delete().eq("id", id);
-      if (error) throw error;
-
-      toast({
-        title: "Timeline entry deleted",
-      });
-      fetchTimelineEntries();
+      const response = await adminAPI.deleteTimelineEntry(String(id));
+      
+      if (response.success) {
+        toast({
+          title: "Timeline entry deleted",
+        });
+        fetchTimelineEntries();
+      }
     } catch (error: any) {
       toast({
         variant: "destructive",
@@ -192,25 +192,22 @@ export default function Timeline() {
 
     try {
       const orderValue = Number.parseInt(editFormData.display_order, 10);
-      const { error } = await supabase
-        .from("timeline_entries")
-        .update({
-          step: editFormData.step.trim(),
-          title: editFormData.title.trim(),
-          description: editFormData.description.trim(),
-          display_order: Number.isNaN(orderValue) ? editingEntry.display_order : orderValue,
-        })
-        .eq("id", editingEntry.id);
-
-      if (error) throw error;
-
-      toast({
-        title: "Timeline entry updated",
+      const response = await adminAPI.updateTimelineEntry(String(editingEntry.id), {
+        step: editFormData.step.trim(),
+        title: editFormData.title.trim(),
+        description: editFormData.description.trim(),
+        display_order: Number.isNaN(orderValue) ? editingEntry.display_order : orderValue,
       });
 
-      setEditOpen(false);
-      setEditingEntry(null);
-      fetchTimelineEntries();
+      if (response.success) {
+        toast({
+          title: "Timeline entry updated",
+        });
+
+        setEditOpen(false);
+        setEditingEntry(null);
+        fetchTimelineEntries();
+      }
     } catch (error: any) {
       toast({
         variant: "destructive",

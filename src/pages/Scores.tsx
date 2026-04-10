@@ -1,11 +1,12 @@
 import { useState, useEffect } from "react";
 import dayjs from "dayjs";
-import { supabase } from "../lib/supabaseClient";
 import { motion, AnimatePresence } from "framer-motion";
 import { Trophy } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import StudentAvatar from "@/components/StudentAvatar";
 import { hasWriteAccess } from "@/lib/auth";
+import { adminAPI } from "@/lib/adminApi";
+import { useToast } from "@/hooks/use-toast";
 
 
 
@@ -25,6 +26,8 @@ export default function Scores() {
   const [editError, setEditError] = useState("");
   const [isEditMode, setIsEditMode] = useState(false);
   const canEdit = hasWriteAccess();
+
+  const { toast } = useToast();
 
   const normalizeText = (value: unknown) => String(value || "").trim();
 
@@ -50,100 +53,142 @@ export default function Scores() {
     setLoading(true);
     setFetchError("");
 
-    const { data: scoresData, error: scoresError } = await supabase.from("leaderboard_stats").select();
-    if (scoresError || !scoresData) {
-      setFetchError(scoresError?.message || "Failed to read score records from database.");
-      setScores([]);
-      setLoading(false);
-      return;
-    }
+    try {
+      const [scoresResponse, studentsResponse] = await Promise.all([
+        adminAPI.getScores(),
+        adminAPI.getStudents()
+      ]);
 
-    const { data: studentsData, error: studentsError } = await supabase
-      .from("students_details")
-      .select("enrollment_no,student_name,member_type");
-
-    if (studentsError || !studentsData) {
-      setFetchError(studentsError?.message || "Failed to read student records from database.");
-      setScores([]);
-      setLoading(false);
-      return;
-    }
-
-    const monthsSet = new Set<string>();
-    scoresData.forEach((row: any) => {
-      const monthKey = toMonthKey(row.period || row.month || row.date || row.created_at);
-      if (monthKey) monthsSet.add(monthKey);
-    });
-    const monthsArr = Array.from(monthsSet).sort().reverse();
-    const fallbackMonths = Array.from({ length: 12 }, (_, i) =>
-      dayjs().subtract(i, "month").format("YYYY-MM")
-    );
-    const mergedMonths = Array.from(new Set([...monthsArr, ...fallbackMonths])).sort().reverse();
-    setMonthOptions(mergedMonths);
-
-    const effectiveMonth = monthOverride || selectedMonth || mergedMonths[0] || null;
-    if (!selectedMonth && mergedMonths.length > 0) {
-      setSelectedMonth(mergedMonths[0]);
-    }
-
-    const visibleStudents = studentsData.filter((stu: any) => normalizeText(stu.enrollment_no));
-
-    const nameMap: { [enroll_no: string]: string } = {};
-    const enrollmentByName: { [name: string]: string } = {};
-    visibleStudents.forEach((stu: any) => {
-      const enrollment = normalizeText(stu.enrollment_no);
-      const name = normalizeText(stu.student_name);
-      if (!enrollment) return;
-      nameMap[enrollment] = name || enrollment;
-      if (name) {
-        enrollmentByName[name.toLowerCase()] = enrollment;
+      if (!scoresResponse.success || !studentsResponse.success) {
+        setFetchError("Failed to fetch data from backend");
+        setScores([]);
+        setLoading(false);
+        return;
       }
-    });
 
-    const scoreMap: Record<string, number> = {};
-    scoresData.forEach((row: any) => {
-      const directEnrollment = normalizeText(row.enrollment_no || row["enroll no."] || row.enroll_no);
-      const fallbackName = normalizeText(row.student_name || row.name || row.student).toLowerCase();
-      const enrollNo = directEnrollment || enrollmentByName[fallbackName] || "";
-      if (!enrollNo) return;
+      const scoresData = Array.isArray(scoresResponse.data) ? scoresResponse.data : [];
+      const studentsData = Array.isArray(studentsResponse.data) ? studentsResponse.data : [];
 
-      const rowMonth = toMonthKey(row.period || row.month || row.date || row.created_at);
-      if (effectiveMonth && rowMonth !== effectiveMonth) return;
+      // Extract months from leaderboard_stats period field
+      const monthsSet = new Set<string>();
+      scoresData.forEach((row: any) => {
+        const period = normalizeText(row.period);
+        if (!period || /^all\s*time$/i.test(period)) return;
 
-      const scoreValue =
-        row.debate_score ??
-        row.monthly_score ??
-        row.month_points ??
-        row.monthly_points ??
-        row.total_score ??
-        row.total_points ??
-        row.points ??
-        row.score ??
-        0;
-      const score = Number(scoreValue) || 0;
-      scoreMap[enrollNo] = (scoreMap[enrollNo] || 0) + score;
-    });
+        // If period is already in YYYY-MM format, use it directly
+        if (/^\d{4}-\d{2}$/.test(period)) {
+          monthsSet.add(period);
+        } else {
+          // Otherwise try to parse it
+          const monthKey = toMonthKey(period);
+          if (monthKey) monthsSet.add(monthKey);
+        }
+      });
+      
+      const monthsArr = Array.from(monthsSet).sort().reverse();
+      const fallbackMonths = Array.from({ length: 12 }, (_, i) =>
+        dayjs().subtract(i, "month").format("YYYY-MM")
+      );
+      const mergedMonths = Array.from(new Set([...monthsArr, ...fallbackMonths])).sort().reverse();
+      setMonthOptions(mergedMonths);
 
-    const leaderboardRows = visibleStudents
-      .filter((stu: any) => stu.enrollment_no)
-      .map((stu: any) => {
-        const enrollNo = stu.enrollment_no;
-        const name = nameMap[enrollNo] || enrollNo;
-        const initials = typeof name === "string" && name.length > 0
-          ? name.split(" ").map((n: string) => n[0]).join("").toUpperCase()
-          : String(enrollNo).slice(0, 2).toUpperCase();
+      const effectiveMonth = monthOverride || selectedMonth || mergedMonths[0] || null;
+      if (!selectedMonth && mergedMonths.length > 0) {
+        setSelectedMonth(mergedMonths[0]);
+      }
 
-        return {
-          enroll_no: enrollNo,
-          score: scoreMap[enrollNo] || 0,
-          name,
-          initials,
-          photo_url: undefined,
-        };
-      })
-      .sort((a, b) => b.score - a.score);
+      // Debug logging
+      console.log("Scores Fetch Debug:", {
+        scoresDataCount: scoresData.length,
+        monthsFound: monthsArr.length,
+        availableMonths: mergedMonths,
+        selectedMonth: effectiveMonth,
+      });
 
-    setScores(leaderboardRows);
+      const visibleStudents = studentsData.filter((stu: any) => normalizeText(stu.enrollment_no) && String(stu.member_type || "member").toLowerCase() !== "admin");
+
+      const nameMap: { [enroll_no: string]: string } = {};
+      const enrollmentByName: { [name: string]: string } = {};
+      visibleStudents.forEach((stu: any) => {
+        const enrollment = normalizeText(stu.enrollment_no);
+        const name = normalizeText(stu.student_name);
+        if (!enrollment) return;
+        nameMap[enrollment] = name || enrollment;
+        if (name) {
+          enrollmentByName[name.toLowerCase()] = enrollment;
+        }
+      });
+
+      const scoreMap: Record<string, number> = {};
+      scoresData.forEach((row: any) => {
+        const enrollment = normalizeText(row.enrollment_no);
+        if (!enrollment) return;
+
+        // Check if this row matches the selected month
+        const rowPeriod = normalizeText(row.period);
+        
+        // If no month selected, include all scores
+        if (!effectiveMonth) {
+          const score = Number(row.debate_score || 0) || 0;
+          scoreMap[enrollment] = (scoreMap[enrollment] || 0) + score;
+          return;
+        }
+
+        // If month is selected, match the period format (YYYY-MM)
+        let matchesMonth = false;
+        
+        // Try direct match first (if period is already YYYY-MM format)
+        if (rowPeriod === effectiveMonth) {
+          matchesMonth = true;
+        } else {
+          // Try parsing the period with toMonthKey
+          const rowMonth = toMonthKey(rowPeriod);
+          if (rowMonth === effectiveMonth) {
+            matchesMonth = true;
+          }
+        }
+
+        if (matchesMonth) {
+          const score = Number(row.debate_score || 0) || 0;
+          scoreMap[enrollment] = (scoreMap[enrollment] || 0) + score;
+        }
+      });
+
+      console.log("Score Map Debug:", {
+        totalScoresProcessed: scoresData.length,
+        scoresWithMatches: Object.keys(scoreMap).length,
+        scoreMapSample: Object.fromEntries(Object.entries(scoreMap).slice(0, 5)),
+      });
+
+      const leaderboardRows = visibleStudents
+        .filter((stu: any) => stu.enrollment_no)
+        .map((stu: any) => {
+          const enrollNo = stu.enrollment_no;
+          const name = nameMap[enrollNo] || enrollNo;
+          const initials = typeof name === "string" && name.length > 0
+            ? name.split(" ").map((n: string) => n[0]).join("").toUpperCase()
+            : String(enrollNo).slice(0, 2).toUpperCase();
+
+          return {
+            enroll_no: enrollNo,
+            score: scoreMap[enrollNo] || 0,
+            name,
+            initials,
+            photo_url: undefined,
+          };
+        })
+        .sort((a, b) => b.score - a.score);
+
+      setScores(leaderboardRows);
+    } catch (error: any) {
+      setFetchError(error.message || "Failed to fetch scores");
+      setScores([]);
+      toast({
+        variant: "destructive",
+        title: "Error",
+        description: error.message || "Failed to fetch scores",
+      });
+    }
     setLoading(false);
   };
 
@@ -165,7 +210,7 @@ export default function Scores() {
       .filter(([_, score]) => score !== "" && !isNaN(Number(score)))
       .map(([enroll_no, score]) => ({
         enrollment_no: enroll_no,
-        total_points: parseFloat(score),
+        debate_score: parseFloat(score),
         date: addDate,
       }));
     if (rows.length === 0) {
@@ -173,21 +218,24 @@ export default function Scores() {
       setAdding(false);
       return;
     }
-    const leaderboardRows = rows.map((row) => ({
-      enrollment_no: row.enrollment_no,
-      debate_score: row.total_points,
-      period: dayjs(row.date).format("MMM YYYY"),
-    }));
 
-    const { error } = await supabase.from("leaderboard_stats").insert(leaderboardRows);
-    if (error) {
-      setAddError(error.message);
-    } else {
+    try {
+      for (const row of rows) {
+        await adminAPI.createScore(row);
+      }
+
+      toast({
+        title: "Scores added successfully",
+      });
+
       setShowAddForm(false);
       setAddScores({});
       setAddDate("");
       await fetchScores(selectedMonth);
+    } catch (error: any) {
+      setAddError(error.message || "Failed to add scores");
     }
+
     setAdding(false);
   };
 
@@ -196,50 +244,56 @@ export default function Scores() {
     setSavingEdits(true);
     setEditError("");
 
-    const monthPeriod = monthKeyToPeriodLabel(selectedMonth);
     const entries = Object.entries(editScores).filter(([_, value]) => value !== "" && !isNaN(Number(value)));
 
     try {
       for (const [enrollNo, value] of entries) {
         const numericValue = Number(value);
 
-        const { data: existingRows, error: existingError } = await supabase
-          .from("leaderboard_stats")
-          .select("enrollment_no")
-          .eq("enrollment_no", enrollNo)
-          .eq("period", monthPeriod)
-          .limit(1);
-
-        if (existingError) {
-          throw new Error(existingError.message);
-        }
-
-        if (existingRows && existingRows.length > 0) {
-          const { error: updateError } = await supabase
-            .from("leaderboard_stats")
-            .update({ debate_score: numericValue })
-            .eq("enrollment_no", enrollNo)
-            .eq("period", monthPeriod);
-
-          if (updateError) {
-            throw new Error(updateError.message);
+        // Try to update existing score, or create if not exists
+        try {
+          // First, try to fetch existing score
+          const existingScores = await adminAPI.getScoresByStudent(enrollNo);
+          
+          if (existingScores.success && existingScores.data && existingScores.data.length > 0) {
+            // Update existing - use the first matching record for this month
+            const recordToUpdate = existingScores.data.find((s: any) => 
+              toMonthKey(s.period) === selectedMonth
+            ) || existingScores.data[0];
+            
+            await adminAPI.updateScore(recordToUpdate.id, { debate_score: numericValue });
+          } else {
+            // Create new
+            await adminAPI.createScore({ 
+              enrollment_no: enrollNo, 
+              debate_score: numericValue, 
+              date: new Date().toISOString() 
+            });
           }
-        } else {
-          const { error: insertError } = await supabase
-            .from("leaderboard_stats")
-            .insert({ enrollment_no: enrollNo, debate_score: numericValue, period: monthPeriod });
-
-          if (insertError) {
-            throw new Error(insertError.message);
-          }
+        } catch (error: any) {
+          // If fetch fails, just try to create
+          await adminAPI.createScore({ 
+            enrollment_no: enrollNo, 
+            debate_score: numericValue, 
+            date: new Date().toISOString() 
+          });
         }
       }
+
+      toast({
+        title: "Scores updated successfully",
+      });
 
       setEditScores({});
       setIsEditMode(false);
       await fetchScores(selectedMonth);
     } catch (error: any) {
       setEditError(error?.message || "Failed to save edits.");
+      toast({
+        variant: "destructive",
+        title: "Error",
+        description: error?.message || "Failed to save edits.",
+      });
     }
 
     setSavingEdits(false);
