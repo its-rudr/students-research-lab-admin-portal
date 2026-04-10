@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import dayjs from "dayjs";
 import { supabase } from "../lib/supabaseClient";
 import { motion, AnimatePresence } from "framer-motion";
 import { Trophy } from "lucide-react";
@@ -10,6 +11,8 @@ import { hasWriteAccess } from "@/lib/auth";
 
 export default function Scores() {
   const [scores, setScores] = useState<Array<{ enroll_no: string; score: number; name: string; initials: string; photo_url?: string }>>([]);
+  const [selectedMonth, setSelectedMonth] = useState<string | null>(null);
+  const [monthOptions, setMonthOptions] = useState<string[]>([]);
   const [loading, setLoading] = useState(true);
   const [fetchError, setFetchError] = useState("");
   const [showAddForm, setShowAddForm] = useState(false);
@@ -17,7 +20,132 @@ export default function Scores() {
   const [addScores, setAddScores] = useState<{ [enroll_no: string]: string }>({});
   const [adding, setAdding] = useState(false);
   const [addError, setAddError] = useState("");
+  const [editScores, setEditScores] = useState<{ [enroll_no: string]: string }>({});
+  const [savingEdits, setSavingEdits] = useState(false);
+  const [editError, setEditError] = useState("");
+  const [isEditMode, setIsEditMode] = useState(false);
   const canEdit = hasWriteAccess();
+
+  const normalizeText = (value: unknown) => String(value || "").trim();
+
+  const toMonthKey = (value: unknown): string | null => {
+    const raw = normalizeText(value);
+    if (!raw || /^all\s*time$/i.test(raw)) return null;
+
+    const parsed = dayjs(raw);
+    if (parsed.isValid()) return parsed.format("YYYY-MM");
+
+    const shortMonthMatch = raw.match(/^([A-Za-z]{3,9})\s+(\d{4})$/);
+    if (shortMonthMatch) {
+      const monthParsed = dayjs(`01 ${raw}`);
+      if (monthParsed.isValid()) return monthParsed.format("YYYY-MM");
+    }
+
+    return null;
+  };
+
+  const monthKeyToPeriodLabel = (monthKey: string) => dayjs(`${monthKey}-01`).format("MMM YYYY");
+
+  const fetchScores = async (monthOverride?: string | null) => {
+    setLoading(true);
+    setFetchError("");
+
+    const { data: scoresData, error: scoresError } = await supabase.from("leaderboard_stats").select();
+    if (scoresError || !scoresData) {
+      setFetchError(scoresError?.message || "Failed to read score records from database.");
+      setScores([]);
+      setLoading(false);
+      return;
+    }
+
+    const { data: studentsData, error: studentsError } = await supabase
+      .from("students_details")
+      .select("enrollment_no,student_name,member_type");
+
+    if (studentsError || !studentsData) {
+      setFetchError(studentsError?.message || "Failed to read student records from database.");
+      setScores([]);
+      setLoading(false);
+      return;
+    }
+
+    const monthsSet = new Set<string>();
+    scoresData.forEach((row: any) => {
+      const monthKey = toMonthKey(row.period || row.month || row.date || row.created_at);
+      if (monthKey) monthsSet.add(monthKey);
+    });
+    const monthsArr = Array.from(monthsSet).sort().reverse();
+    const fallbackMonths = Array.from({ length: 12 }, (_, i) =>
+      dayjs().subtract(i, "month").format("YYYY-MM")
+    );
+    const mergedMonths = Array.from(new Set([...monthsArr, ...fallbackMonths])).sort().reverse();
+    setMonthOptions(mergedMonths);
+
+    const effectiveMonth = monthOverride || selectedMonth || mergedMonths[0] || null;
+    if (!selectedMonth && mergedMonths.length > 0) {
+      setSelectedMonth(mergedMonths[0]);
+    }
+
+    const visibleStudents = studentsData.filter((stu: any) => normalizeText(stu.enrollment_no));
+
+    const nameMap: { [enroll_no: string]: string } = {};
+    const enrollmentByName: { [name: string]: string } = {};
+    visibleStudents.forEach((stu: any) => {
+      const enrollment = normalizeText(stu.enrollment_no);
+      const name = normalizeText(stu.student_name);
+      if (!enrollment) return;
+      nameMap[enrollment] = name || enrollment;
+      if (name) {
+        enrollmentByName[name.toLowerCase()] = enrollment;
+      }
+    });
+
+    const scoreMap: Record<string, number> = {};
+    scoresData.forEach((row: any) => {
+      const directEnrollment = normalizeText(row.enrollment_no || row["enroll no."] || row.enroll_no);
+      const fallbackName = normalizeText(row.student_name || row.name || row.student).toLowerCase();
+      const enrollNo = directEnrollment || enrollmentByName[fallbackName] || "";
+      if (!enrollNo) return;
+
+      const rowMonth = toMonthKey(row.period || row.month || row.date || row.created_at);
+      if (effectiveMonth && rowMonth !== effectiveMonth) return;
+
+      const scoreValue =
+        row.debate_score ??
+        row.monthly_score ??
+        row.month_points ??
+        row.monthly_points ??
+        row.total_score ??
+        row.total_points ??
+        row.points ??
+        row.score ??
+        0;
+      const score = Number(scoreValue) || 0;
+      scoreMap[enrollNo] = (scoreMap[enrollNo] || 0) + score;
+    });
+
+    const leaderboardRows = visibleStudents
+      .filter((stu: any) => stu.enrollment_no)
+      .map((stu: any) => {
+        const enrollNo = stu.enrollment_no;
+        const name = nameMap[enrollNo] || enrollNo;
+        const initials = typeof name === "string" && name.length > 0
+          ? name.split(" ").map((n: string) => n[0]).join("").toUpperCase()
+          : String(enrollNo).slice(0, 2).toUpperCase();
+
+        return {
+          enroll_no: enrollNo,
+          score: scoreMap[enrollNo] || 0,
+          name,
+          initials,
+          photo_url: undefined,
+        };
+      })
+      .sort((a, b) => b.score - a.score);
+
+    setScores(leaderboardRows);
+    setLoading(false);
+  };
 
   const handleAddScores = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -37,7 +165,7 @@ export default function Scores() {
       .filter(([_, score]) => score !== "" && !isNaN(Number(score)))
       .map(([enroll_no, score]) => ({
         enrollment_no: enroll_no,
-        points: parseFloat(score),
+        total_points: parseFloat(score),
         date: addDate,
       }));
     if (rows.length === 0) {
@@ -45,140 +173,116 @@ export default function Scores() {
       setAdding(false);
       return;
     }
-    const { error } = await supabase.from("debate_scores").insert(rows);
+    const leaderboardRows = rows.map((row) => ({
+      enrollment_no: row.enrollment_no,
+      debate_score: row.total_points,
+      period: dayjs(row.date).format("MMM YYYY"),
+    }));
+
+    const { error } = await supabase.from("leaderboard_stats").insert(leaderboardRows);
     if (error) {
       setAddError(error.message);
     } else {
       setShowAddForm(false);
       setAddScores({});
       setAddDate("");
+      await fetchScores(selectedMonth);
     }
     setAdding(false);
   };
 
+  const handleSaveEdits = async () => {
+    if (!canEdit || !selectedMonth) return;
+    setSavingEdits(true);
+    setEditError("");
+
+    const monthPeriod = monthKeyToPeriodLabel(selectedMonth);
+    const entries = Object.entries(editScores).filter(([_, value]) => value !== "" && !isNaN(Number(value)));
+
+    try {
+      for (const [enrollNo, value] of entries) {
+        const numericValue = Number(value);
+
+        const { data: existingRows, error: existingError } = await supabase
+          .from("leaderboard_stats")
+          .select("enrollment_no")
+          .eq("enrollment_no", enrollNo)
+          .eq("period", monthPeriod)
+          .limit(1);
+
+        if (existingError) {
+          throw new Error(existingError.message);
+        }
+
+        if (existingRows && existingRows.length > 0) {
+          const { error: updateError } = await supabase
+            .from("leaderboard_stats")
+            .update({ debate_score: numericValue })
+            .eq("enrollment_no", enrollNo)
+            .eq("period", monthPeriod);
+
+          if (updateError) {
+            throw new Error(updateError.message);
+          }
+        } else {
+          const { error: insertError } = await supabase
+            .from("leaderboard_stats")
+            .insert({ enrollment_no: enrollNo, debate_score: numericValue, period: monthPeriod });
+
+          if (insertError) {
+            throw new Error(insertError.message);
+          }
+        }
+      }
+
+      setEditScores({});
+      setIsEditMode(false);
+      await fetchScores(selectedMonth);
+    } catch (error: any) {
+      setEditError(error?.message || "Failed to save edits.");
+    }
+
+    setSavingEdits(false);
+  };
+
   useEffect(() => {
-    const fetchScores = async () => {
-      setLoading(true);
-      setFetchError("");
-      // Fetch debate scores
-      const { data: scoresData, error: scoresError } = await supabase.from("debate_scores").select();
-      if (scoresError || !scoresData) {
-        setFetchError(scoresError?.message || "Failed to read score records from database.");
-        setScores([]);
-        setLoading(false);
-        return;
-      }
-      // Fetch student details
-      const { data: studentsData, error: studentsError } = await supabase.from("students_details").select("enrollment_no,student_name,member_type");
-      if (studentsError || !studentsData) {
-        setFetchError(studentsError?.message || "Failed to read student records from database.");
-        setScores([]);
-        setLoading(false);
-        return;
-      }
-      const visibleStudents = studentsData.filter(
-        (stu: any) => String(stu.member_type || "member").toLowerCase() !== "admin"
-      );
-      const visibleEnrollmentSet = new Set(
-        visibleStudents
-          .map((stu: any) => stu.enrollment_no)
-          .filter(Boolean)
-      );
-      // Map enrollment_no to name
-      const nameMap: { [enroll_no: string]: string } = {};
-      const photoMap: { [enroll_no: string]: string | undefined } = {};
-      visibleStudents.forEach((stu: any) => {
-        nameMap[stu.enrollment_no] = stu.student_name;
-        photoMap[stu.enrollment_no] = undefined;
-      });
-
-      const now = new Date();
-      const previousMonthDate = new Date(now.getFullYear(), now.getMonth() - 1, 1);
-      const targetMonth = previousMonthDate.getMonth() + 1;
-      const targetYear = previousMonthDate.getFullYear();
-
-      const isTargetMonth = (value: any) => {
-        const dateStr = String(value || "").trim();
-        if (!dateStr) return false;
-
-        const monthPad = String(targetMonth).padStart(2, "0");
-        if (
-          dateStr.includes(`${targetYear}-${monthPad}`) ||
-          dateStr.includes(`${monthPad}/${targetYear}`) ||
-          dateStr.includes(`${targetMonth}/${targetYear}`)
-        ) {
-          return true;
-        }
-
-        const parsed = new Date(dateStr);
-        return !Number.isNaN(parsed.getTime()) && parsed.getMonth() + 1 === targetMonth && parsed.getFullYear() === targetYear;
-      };
-
-      const scoreMap: Record<string, number> = {};
-      const merged = scoresData.map((row: any) => {
-        if (!isTargetMonth(row.date || row.Date || row.DATE)) {
-          return null;
-        }
-
-        const enrollNo = row.enrollment_no || row["enroll no."] || row.enroll_no || "";
-        const scoreValue = row.total_points ?? row.points ?? row.score ?? 0;
-        const score = Number(scoreValue) || 0;
-
-        if (enrollNo) {
-          scoreMap[enrollNo] = (scoreMap[enrollNo] || 0) + score;
-        }
-
-        const name = nameMap[enrollNo] || enrollNo;
-        let initials = "";
-        if (typeof name === "string" && name.length > 0) {
-          initials = name.split(" ").map((n: string) => n[0]).join("").toUpperCase();
-        } else if (enrollNo) {
-          initials = String(enrollNo).slice(0, 2).toUpperCase();
-        }
-        return {
-          enroll_no: enrollNo,
-          score,
-          name,
-          initials,
-          photo_url: photoMap[enrollNo],
-        };
-      }).filter(Boolean) as Array<{ enroll_no: string; score: number; name: string; initials: string; photo_url?: string }>;
-
-      // Keep one row per student and show previous-month leaderboard only.
-      const aggregated = Object.entries(scoreMap)
-        .filter(([enrollNo]) => visibleEnrollmentSet.has(enrollNo))
-        .map(([enrollNo, total]) => {
-        const name = nameMap[enrollNo] || enrollNo;
-        const initials = typeof name === "string" && name.length > 0
-          ? name.split(" ").map((n: string) => n[0]).join("").toUpperCase()
-          : enrollNo.slice(0, 2).toUpperCase();
-
-        return {
-          enroll_no: enrollNo,
-          score: total,
-          name,
-          initials,
-          photo_url: photoMap[enrollNo],
-        };
-      });
-
-      const fallbackMerged = merged.filter((item) => item.enroll_no && visibleEnrollmentSet.has(item.enroll_no));
-
-      const leaderboardRows = aggregated.length > 0 ? aggregated : fallbackMerged;
-      setScores(leaderboardRows.sort((a, b) => b.score - a.score).slice(0, 5));
-      setLoading(false);
-    };
-    fetchScores();
-  }, []);
+    fetchScores(selectedMonth);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedMonth]);
 
   return (
     <div className="space-y-5 max-w-3xl">
-      <div className="flex justify-end">
-        <Button onClick={() => setShowAddForm((v) => !v)} variant="default" disabled={!canEdit}>
-          {showAddForm ? "Cancel" : "Add Score"}
-        </Button>
+      <div className="flex flex-col sm:flex-row justify-between items-center gap-2">
+        <div className="flex items-center gap-2">
+          <label htmlFor="month-select" className="font-medium text-sm">Month:</label>
+          <select
+            id="month-select"
+            value={selectedMonth || ""}
+            onChange={e => setSelectedMonth(e.target.value)}
+            className="border px-2 py-1 rounded text-sm"
+            disabled={monthOptions.length === 0}
+          >
+            {monthOptions.length === 0 && <option value="">No months</option>}
+            {monthOptions.map(month => (
+              <option key={month} value={month}>{month}</option>
+            ))}
+          </select>
+        </div>
+        <div className="flex items-center gap-2">
+          <Button
+            onClick={() => setIsEditMode((v) => !v)}
+            variant={isEditMode ? "secondary" : "outline"}
+            disabled={!canEdit || scores.length === 0}
+          >
+            {isEditMode ? "Cancel Edit" : "Edit Scores"}
+          </Button>
+          <Button onClick={() => setShowAddForm((v) => !v)} variant="default" disabled={!canEdit}>
+            {showAddForm ? "Cancel" : "Add Score"}
+          </Button>
+        </div>
       </div>
       {!canEdit && <p className="text-xs text-muted-foreground">You have read-only access. Only admin can add scores.</p>}
+      {editError && <p className="text-xs text-destructive">{editError}</p>}
       {showAddForm && (
         <form onSubmit={handleAddScores} className="mb-4 p-3 sm:p-4 border rounded bg-card flex flex-col gap-3 max-w-2xl">
           <div className="flex flex-col sm:flex-row gap-2 sm:items-center mb-2">
@@ -229,7 +333,7 @@ export default function Scores() {
       <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} className="glass-card rounded-2xl overflow-hidden">
         <div className="p-5 border-b border-border">
           <h2 className="section-title flex items-center gap-2">
-            <Trophy className="w-4 h-4 text-primary" /> Last Month Top Scorers
+            <Trophy className="w-4 h-4 text-primary" /> Scores for Selected Month
           </h2>
         </div>
         <div className="divide-y divide-border/50">
@@ -273,12 +377,29 @@ export default function Scores() {
                     >
                       {student.score}
                     </motion.span>
+                    {canEdit && isEditMode && (
+                      <input
+                        type="number"
+                        min="-1000"
+                        value={editScores[student.enroll_no] ?? String(student.score)}
+                        onChange={e => setEditScores({ ...editScores, [student.enroll_no]: e.target.value })}
+                        className="border px-2 py-1 rounded w-16 ml-2"
+                        placeholder="Edit"
+                      />
+                    )}
                   </div>
                 </motion.div>
               ))}
             </AnimatePresence>
           )}
         </div>
+        {canEdit && isEditMode && scores.length > 0 && (
+          <div className="p-4 border-t border-border flex justify-end">
+            <Button onClick={handleSaveEdits} disabled={savingEdits || !selectedMonth}>
+              {savingEdits ? "Saving..." : "Save Month Edits"}
+            </Button>
+          </div>
+        )}
       </motion.div>
     </div>
   );
