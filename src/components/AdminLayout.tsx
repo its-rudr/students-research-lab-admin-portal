@@ -20,6 +20,7 @@ import {
   FileUser,
   Milestone,
   ShieldCheck,
+  Award,
 } from "lucide-react";
 import { NavLink } from "react-router-dom";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
@@ -36,6 +37,7 @@ const navItems = [
   { title: "Scores", path: "/scores", icon: Trophy },
   { title: "Activities", path: "/activities", icon: Calendar },
   { title: "Timeline", path: "/timeline", icon: Milestone },
+  { title: "Achievements", path: "/achievements", icon: Award },
   { title: "Member CV", path: "/member-cv", icon: FileUser },
   // { title: "Sheet Sync", path: "/sheet-sync", icon: RefreshCw },
   // { title: "Google Sheets", path: "/google-sheets", icon: FileSpreadsheet },
@@ -50,6 +52,7 @@ const pageNames: Record<string, string> = {
   "/scores": "Live Scores",
   "/activities": "Activities & Events",
   "/timeline": "Journey Timeline",
+  "/achievements": "Achievements",
   "/member-cv": "Member CV Profiles",
   "/sheet-sync": "Sync Google Sheets",
   "/google-sheets": "Google Sheets Data",

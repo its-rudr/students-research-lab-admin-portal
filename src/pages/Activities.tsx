@@ -9,6 +9,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/hooks/use-toast";
 import { hasWriteAccess } from "@/lib/auth";
 import { adminAPI } from "@/lib/adminApi";
+import ImageUpload from "@/components/ImageUpload";
 
 interface Activity {
   id: string | number;
@@ -19,6 +20,7 @@ interface Activity {
   category?: string;
   hours?: number;
   status?: string;
+  Photo?: string;
 }
 
 export default function Activities() {
@@ -34,6 +36,7 @@ export default function Activities() {
     date: new Date().toISOString().split('T')[0],
     enrollment_no: "",
     hours: "",
+    Photo: "",
   });
   const [editFormData, setEditFormData] = useState({
     title: "",
@@ -41,6 +44,7 @@ export default function Activities() {
     description: "",
     date: "",
     hours: "",
+    Photo: "",
   });
   const { toast } = useToast();
   const canEdit = hasWriteAccess();
@@ -103,6 +107,7 @@ export default function Activities() {
         date: formData.date || new Date().toISOString(),
         enrollment_no: formData.enrollment_no || null,
         hours: formData.hours ? parseFloat(formData.hours) : 0,
+        Photo: formData.Photo.trim() || null,
       });
 
       if (response.success) {
@@ -118,6 +123,7 @@ export default function Activities() {
           date: new Date().toISOString().split('T')[0],
           enrollment_no: "",
           hours: "",
+          Photo: "",
         });
         fetchActivities();
       }
@@ -149,6 +155,7 @@ export default function Activities() {
       description: activity.description || "",
       date: dateStr,
       hours: activity.hours?.toString() || "",
+      Photo: activity.Photo || "",
     });
     setEditOpen(true);
   };
@@ -179,6 +186,7 @@ export default function Activities() {
         description: editFormData.description.trim() || null,
         date: editFormData.date,
         hours: editFormData.hours ? parseFloat(editFormData.hours) : 0,
+        Photo: editFormData.Photo.trim() || null,
       });
 
       if (response.success) {
@@ -292,6 +300,11 @@ export default function Activities() {
                     onChange={(e) => setFormData({ ...formData, hours: e.target.value })}
                   />
                 </div>
+                <ImageUpload
+                  label="Activity Photo"
+                  onImageUpload={(url) => setFormData({ ...formData, Photo: url })}
+                  currentImage={formData.Photo}
+                />
                 <div className="space-y-1.5">
                   <Label>Description</Label>
                   <Textarea 
@@ -362,6 +375,11 @@ export default function Activities() {
                   onChange={(e) => setEditFormData({ ...editFormData, hours: e.target.value })}
                 />
               </div>
+              <ImageUpload
+                label="Activity Photo"
+                onImageUpload={(url) => setEditFormData({ ...editFormData, Photo: url })}
+                currentImage={editFormData.Photo}
+              />
               <div className="space-y-1.5">
                 <Label>Description</Label>
                 <Textarea

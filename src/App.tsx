@@ -12,6 +12,7 @@ import Attendance from "@/pages/Attendance";
 import Scores from "@/pages/Scores";
 import Activities from "@/pages/Activities";
 import Timeline from "@/pages/Timeline";
+import Achievements from "@/pages/Achievements";
 import JoinRequests from "@/pages/JoinRequests";
 import MemberCV from "./pages/MemberCV";
 import Login from "@/pages/Login";
@@ -40,6 +41,7 @@ const App = () => {
                 <Route path="/scores" element={<Scores />} />
                 <Route path="/activities" element={<Activities />} />
                 <Route path="/timeline" element={<Timeline />} />
+                <Route path="/achievements" element={<Achievements />} />
                 <Route
                   path="/join-requests"
                   element={hasWriteAccess() ? <JoinRequests /> : <Navigate to="/" replace />}

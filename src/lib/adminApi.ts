@@ -207,6 +207,59 @@ export const adminAPI = {
   async deleteJoinRequest(id: string) {
     return apiCall(`/admin/join-requests/${id}`, "DELETE");
   },
+
+  // Achievements APIs
+  async getAchievements() {
+    return apiCall("/admin/achievements");
+  },
+
+  async createAchievement(data: any) {
+    return apiCall("/admin/achievements", "POST", data);
+  },
+
+  async updateAchievement(id: string, data: any) {
+    return apiCall(`/admin/achievements/${id}`, "PUT", data);
+  },
+
+  async deleteAchievement(id: string) {
+    return apiCall(`/admin/achievements/${id}`, "DELETE");
+  },
+
+  // Image Upload API
+  async uploadImage(formData: FormData) {
+    try {
+      const token = getAuthToken();
+      const headers: HeadersInit = {};
+
+      // In development mode, always send dev-token header
+      if (import.meta.env.DEV) {
+        headers["x-dev-token"] = "dev-bypass";
+        console.log(`[API] POST /admin/upload-image - Using dev bypass`);
+      } else if (token) {
+        // In production, use actual token
+        headers.Authorization = `Bearer ${token}`;
+      }
+
+      const response = await fetch(`${API_BASE_URL}/admin/upload-image`, {
+        method: "POST",
+        headers,
+        body: formData,
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.message || `Upload failed: ${response.statusText}`);
+      }
+
+      return response.json();
+    } catch (error: any) {
+      throw new Error(error.message || "Failed to upload image");
+    }
+  },
+
+  async deleteImage(publicId: string) {
+    return apiCall("/admin/delete-image", "POST", { public_id: publicId });
+  },
 };
 
 export default adminAPI;

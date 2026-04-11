@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { motion } from "framer-motion";
-import { Plus, Search, Eye, Edit, Trash2, MoreHorizontal, FileText, ImageOff } from "lucide-react";
+import { Plus, Search, Eye, Edit, Trash2, MoreHorizontal, FileText, ImageOff, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
@@ -10,6 +10,9 @@ import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { supabase } from "@/lib/supabaseClient";
+import { adminAPI } from "@/lib/adminApi";
+import { useToast } from "@/hooks/use-toast";
+import ImageUpload from "@/components/ImageUpload";
 
 
 type ResearchProject = {
@@ -20,6 +23,11 @@ type ResearchProject = {
   [key: string]: any;
 };
 
+type Student = {
+  student_name: string;
+  enrollment_no: string;
+  email?: string;
+};
 
 export default function Research() {
   const [search, setSearch] = useState("");
@@ -27,6 +35,20 @@ export default function Research() {
   const [projects, setProjects] = useState<ResearchProject[]>([]);
   const [loading, setLoading] = useState(true);
   const [viewProject, setViewProject] = useState<ResearchProject | null>(null);
+  const [students, setStudents] = useState<Student[]>([]);
+  const [studentsLoading, setStudentsLoading] = useState(false);
+  const [selectedStudent, setSelectedStudent] = useState("");
+  const [submitting, setSubmitting] = useState(false);
+  const { toast } = useToast();
+
+  const [formData, setFormData] = useState({
+    title: "",
+    student_enrollment: "",
+    description: "",
+    tags: "",
+    link: "",
+    team_image_url: "",
+  });
 
   useEffect(() => {
     const fetchProjects = async () => {
@@ -43,6 +65,72 @@ export default function Research() {
     };
     fetchProjects();
   }, []);
+
+  useEffect(() => {
+    const fetchStudents = async () => {
+      try {
+        setStudentsLoading(true);
+        const response = await adminAPI.getStudents();
+        if (response.success && Array.isArray(response.data)) {
+          setStudents(response.data);
+        } else {
+          setStudents([]);
+        }
+      } catch (error) {
+        console.error("Error fetching students:", error);
+        setStudents([]);
+        toast({
+          variant: "destructive",
+          title: "Error",
+          description: "Failed to fetch students",
+        });
+      } finally {
+        setStudentsLoading(false);
+      }
+    };
+    fetchStudents();
+  }, [toast]);
+
+  const handleSubmitResearch = async () => {
+    if (!formData.title.trim() || !selectedStudent) {
+      toast({
+        variant: "destructive",
+        title: "Missing Fields",
+        description: "Title and student are required",
+      });
+      return;
+    }
+
+    try {
+      setSubmitting(true);
+      const response = await adminAPI.createResearch({
+        title: formData.title.trim(),
+        description: formData.description.trim() || null,
+        tags: formData.tags.trim() || null,
+        link: formData.link.trim() || null,
+        team_image_url: formData.team_image_url.trim() || null,
+        student_enrollment: selectedStudent,
+      });
+
+      if (response.success) {
+        toast({
+          title: "Success",
+          description: "Research entry added successfully",
+        });
+        setOpen(false);
+        setFormData({ title: "", student_enrollment: "", description: "", tags: "", link: "", team_image_url: "" });
+        setSelectedStudent("");
+      }
+    } catch (error: any) {
+      toast({
+        variant: "destructive",
+        title: "Error",
+        description: error.message || "Failed to create research entry",
+      });
+    } finally {
+      setSubmitting(false);
+    }
+  };
 
   const filtered = projects.filter(
     (p) =>
@@ -66,30 +154,96 @@ export default function Research() {
           <DialogContent className="rounded-2xl sm:max-w-lg">
             <DialogHeader><DialogTitle>Add Research Entry</DialogTitle></DialogHeader>
             <div className="space-y-4 pt-2">
-              <div className="space-y-1.5"><Label>Title</Label><Input placeholder="Research paper title" className="rounded-xl" /></div>
               <div className="space-y-1.5">
-                <Label>Student</Label>
-                <Select><SelectTrigger className="rounded-xl"><SelectValue placeholder="Select student" /></SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="ayesha">Ayesha Khan</SelectItem>
-                    <SelectItem value="rahul">Rahul Verma</SelectItem>
-                    <SelectItem value="sara">Sara Ali</SelectItem>
-                    <SelectItem value="james">James Chen</SelectItem>
-                  </SelectContent>
-                </Select>
+                <Label>Title *</Label>
+                <Input 
+                  placeholder="Research paper title" 
+                  className="rounded-xl" 
+                  value={formData.title}
+                  onChange={(e) => setFormData({ ...formData, title: e.target.value })}
+                />
               </div>
-              <div className="space-y-1.5"><Label>Description</Label><Textarea placeholder="Brief description..." className="rounded-xl resize-none" rows={3} /></div>
-              <div className="space-y-1.5"><Label>Tags / Category</Label><Input placeholder="e.g. NLP, Deep Learning" className="rounded-xl" /></div>
               <div className="space-y-1.5">
-                <Label>File Upload</Label>
-                <div className="border-2 border-dashed border-border rounded-xl p-6 text-center cursor-pointer hover:border-primary/40 transition-colors">
-                  <FileText className="w-6 h-6 mx-auto text-muted-foreground mb-2" />
-                  <p className="text-sm text-muted-foreground">Upload PDF or paste link</p>
-                </div>
+                <Label>Student *</Label>
+                {studentsLoading ? (
+                  <div className="flex items-center justify-center p-2 border border-border rounded-xl">
+                    <Loader2 className="w-4 h-4 animate-spin text-muted-foreground" />
+                  </div>
+                ) : (
+                  <Select value={selectedStudent} onValueChange={setSelectedStudent}>
+                    <SelectTrigger className="rounded-xl">
+                      <SelectValue placeholder="Select student" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {students.length > 0 ? (
+                        students.map((student) => (
+                          <SelectItem key={student.enrollment_no} value={student.enrollment_no}>
+                            {student.student_name}
+                          </SelectItem>
+                        ))
+                      ) : (
+                        <div className="text-sm text-muted-foreground p-2">No students available</div>
+                      )}
+                    </SelectContent>
+                  </Select>
+                )}
               </div>
+              <div className="space-y-1.5">
+                <Label>Description</Label>
+                <Textarea 
+                  placeholder="Brief description..." 
+                  className="rounded-xl resize-none" 
+                  rows={3}
+                  value={formData.description}
+                  onChange={(e) => setFormData({ ...formData, description: e.target.value })}
+                />
+              </div>
+              <div className="space-y-1.5">
+                <Label>Tags / Category</Label>
+                <Input 
+                  placeholder="e.g. NLP, Deep Learning" 
+                  className="rounded-xl"
+                  value={formData.tags}
+                  onChange={(e) => setFormData({ ...formData, tags: e.target.value })}
+                />
+              </div>
+              <div className="space-y-1.5">
+                <Label>Paper Link</Label>
+                <Input 
+                  placeholder="https://example.com/paper.pdf" 
+                  className="rounded-xl"
+                  value={formData.link}
+                  onChange={(e) => setFormData({ ...formData, link: e.target.value })}
+                />
+              </div>
+              <ImageUpload
+                label="Team Image"
+                onImageUpload={(url) => setFormData({ ...formData, team_image_url: url })}
+                currentImage={formData.team_image_url}
+              />
               <div className="flex justify-end gap-2 pt-2">
-                <Button variant="outline" className="rounded-xl" onClick={() => setOpen(false)}>Cancel</Button>
-                <Button className="rounded-xl" onClick={() => setOpen(false)}>Submit</Button>
+                <Button 
+                  variant="outline" 
+                  className="rounded-xl" 
+                  onClick={() => setOpen(false)}
+                  disabled={submitting}
+                >
+                  Cancel
+                </Button>
+                <Button 
+                  className="rounded-xl" 
+                  onClick={handleSubmitResearch}
+                  disabled={submitting}
+                >
+                  {submitting ? (
+                    <>
+                      <Loader2 className="w-3.5 h-3.5 mr-1 animate-spin" />
+                      Submitting...
+                    </>
+                  ) : (
+                    "Submit"
+                  )}
+                </Button>
               </div>
             </div>
           </DialogContent>

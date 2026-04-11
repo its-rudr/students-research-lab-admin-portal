@@ -11,12 +11,12 @@ import { Textarea } from "@/components/ui/textarea";
 import { adminAPI } from "@/lib/adminApi";
 import ImageUpload from "@/components/ImageUpload";
 
-interface TimelineEntry {
+interface Achievement {
   id: number;
   serial_no: number;
   title: string;
   description?: string;
-  session_date?: string;
+  achievement_date?: string;
   category?: string;
   type?: string;
   linkedin_url?: string;
@@ -25,31 +25,27 @@ interface TimelineEntry {
   created_at?: string;
 }
 
-export default function Timeline() {
-  const [entries, setEntries] = useState<TimelineEntry[]>([]);
+export default function Achievements() {
+  const [achievements, setAchievements] = useState<Achievement[]>([]);
   const [loading, setLoading] = useState(true);
   const [open, setOpen] = useState(false);
   const [editOpen, setEditOpen] = useState(false);
-  const [editingEntry, setEditingEntry] = useState<TimelineEntry | null>(null);
+  const [editingAchievement, setEditingAchievement] = useState<Achievement | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [editSubmitting, setEditSubmitting] = useState(false);
   const [formData, setFormData] = useState({
     title: "",
     description: "",
-
-    session_date: "",
+    achievement_date: "",
     category: "",
-    type: "video",
     linkedin_url: "",
     image_url: "",
   });
   const [editFormData, setEditFormData] = useState({
     title: "",
     description: "",
-
-    session_date: "",
+    achievement_date: "",
     category: "",
-    type: "video",
     linkedin_url: "",
     image_url: "",
   });
@@ -57,40 +53,40 @@ export default function Timeline() {
   const canEdit = hasWriteAccess();
 
   useEffect(() => {
-    fetchTimelineEntries();
+    fetchAchievements();
   }, []);
 
-  const fetchTimelineEntries = async () => {
+  const fetchAchievements = async () => {
     try {
       setLoading(true);
-      const response = await adminAPI.getTimeline();
+      const response = await adminAPI.getAchievements();
 
       if (response.success && Array.isArray(response.data)) {
         const sorted = response.data.sort((a: any, b: any) => 
           (a.serial_no || 0) - (b.serial_no || 0)
         );
-        setEntries(sorted as TimelineEntry[]);
+        setAchievements(sorted as Achievement[]);
       } else {
-        setEntries([]);
+        setAchievements([]);
       }
     } catch (error: any) {
       toast({
         variant: "destructive",
-        title: "Error fetching timeline",
+        title: "Error fetching achievements",
         description: error.message,
       });
-      setEntries([]);
+      setAchievements([]);
     } finally {
       setLoading(false);
     }
   };
 
-  const handleAddEntry = async () => {
+  const handleAddAchievement = async () => {
     if (!canEdit) {
       toast({
         variant: "destructive",
         title: "Read-only access",
-        description: "Only admin can add timeline entries.",
+        description: "Only admin can add achievements.",
       });
       return;
     }
@@ -106,39 +102,35 @@ export default function Timeline() {
 
     try {
       setSubmitting(true);
-      const response = await adminAPI.createTimelineEntry({
+      const response = await adminAPI.createAchievement({
         title: formData.title.trim(),
         description: formData.description.trim() || null,
-
-        session_date: formData.session_date || null,
+        achievement_date: formData.achievement_date || null,
         category: formData.category.trim() || null,
-        type: formData.type || "video",
         linkedin_url: formData.linkedin_url.trim() || null,
         image_url: formData.image_url.trim() || null,
       });
 
       if (response.success) {
         toast({
-          title: "Timeline entry added",
+          title: "Achievement added",
         });
 
         setOpen(false);
         setFormData({
           title: "",
           description: "",
-
-          session_date: "",
+          achievement_date: "",
           category: "",
-          type: "video",
           linkedin_url: "",
           image_url: "",
         });
-        fetchTimelineEntries();
+        fetchAchievements();
       }
     } catch (error: any) {
       toast({
         variant: "destructive",
-        title: "Error adding timeline entry",
+        title: "Error adding achievement",
         description: error.message,
       });
     } finally {
@@ -146,69 +138,67 @@ export default function Timeline() {
     }
   };
 
-  const handleDeleteEntry = async (id: number) => {
+  const handleDeleteAchievement = async (id: number) => {
     if (!canEdit) {
       toast({
         variant: "destructive",
         title: "Read-only access",
-        description: "Only admin can delete timeline entries.",
+        description: "Only admin can delete achievements.",
       });
       return;
     }
 
     try {
-      const response = await adminAPI.deleteTimelineEntry(String(id));
+      const response = await adminAPI.deleteAchievement(String(id));
       
       if (response.success) {
         toast({
-          title: "Timeline entry deleted",
+          title: "Achievement deleted",
         });
-        fetchTimelineEntries();
+        fetchAchievements();
       }
     } catch (error: any) {
       toast({
         variant: "destructive",
-        title: "Error deleting timeline entry",
+        title: "Error deleting achievement",
         description: error.message,
       });
     }
   };
 
-  const handleStartEdit = (entry: TimelineEntry) => {
+  const handleStartEdit = (achievement: Achievement) => {
     if (!canEdit) {
       toast({
         variant: "destructive",
         title: "Read-only access",
-        description: "Only admin can edit timeline entries.",
+        description: "Only admin can edit achievements.",
       });
       return;
     }
 
-    setEditingEntry(entry);
+    setEditingAchievement(achievement);
     setEditFormData({
-      title: entry.title || "",
-      description: entry.description || "",
-
-      session_date: entry.session_date || "",
-      category: entry.category || "",
-      type: entry.type || "video",
-      linkedin_url: entry.linkedin_url || "",
-      image_url: entry.image_url || "",
+      title: achievement.title || "",
+      description: achievement.description || "",
+      achievement_date: achievement.achievement_date || "",
+      category: achievement.category || "",
+      linkedin_url: achievement.linkedin_url || "",
+      image_url: achievement.image_url || "",
     });
     setEditOpen(true);
   };
 
-  const handleUpdateEntry = async () => {
+  const handleUpdateAchievement = async () => {
     if (!canEdit) {
       toast({
         variant: "destructive",
         title: "Read-only access",
-        description: "Only admin can edit timeline entries.",
+        description: "Only admin can edit achievements.",
       });
       return;
     }
 
-    if (!editingEntry) return;
+    if (!editingAchievement) return;
 
     if (!editFormData.title.trim()) {
       toast({
@@ -221,30 +211,28 @@ export default function Timeline() {
 
     try {
       setEditSubmitting(true);
-      const response = await adminAPI.updateTimelineEntry(String(editingEntry.id), {
+      const response = await adminAPI.updateAchievement(String(editingAchievement.id), {
         title: editFormData.title.trim(),
         description: editFormData.description.trim() || null,
-
-        session_date: editFormData.session_date || null,
+        achievement_date: editFormData.achievement_date || null,
         category: editFormData.category.trim() || null,
-        type: editFormData.type || "video",
         linkedin_url: editFormData.linkedin_url.trim() || null,
         image_url: editFormData.image_url.trim() || null,
       });
 
       if (response.success) {
         toast({
-          title: "Timeline entry updated",
+          title: "Achievement updated",
         });
 
         setEditOpen(false);
-        setEditingEntry(null);
-        fetchTimelineEntries();
+        setEditingAchievement(null);
+        fetchAchievements();
       }
     } catch (error: any) {
       toast({
         variant: "destructive",
-        title: "Error updating timeline entry",
+        title: "Error updating achievement",
         description: error.message,
       });
     } finally {
@@ -267,18 +255,18 @@ export default function Timeline() {
           <Dialog open={open} onOpenChange={setOpen}>
             <DialogTrigger asChild>
               <Button size="sm" className="rounded-xl gap-1.5 text-sm sm:text-base">
-                <Plus className="w-3.5 h-3.5" /> <span className="hidden sm:inline">Add Timeline Entry</span><span className="sm:hidden">Add</span>
+                <Plus className="w-3.5 h-3.5" /> <span className="hidden sm:inline">Add Achievement</span><span className="sm:hidden">Add</span>
               </Button>
             </DialogTrigger>
             <DialogContent className="rounded-2xl sm:max-w-md max-h-[90vh] overflow-y-auto">
               <DialogHeader>
-                <DialogTitle>Add Timeline Entry</DialogTitle>
+                <DialogTitle>Add Achievement</DialogTitle>
               </DialogHeader>
               <div className="space-y-4 pt-2">
                 <div className="space-y-1.5">
                   <Label>Title *</Label>
                   <Input
-                    placeholder="e.g., SRL Foundation Ceremony"
+                    placeholder="e.g., Won Best Research Paper"
                     className="rounded-xl"
                     value={formData.title}
                     onChange={(e) => setFormData({ ...formData, title: e.target.value })}
@@ -287,7 +275,7 @@ export default function Timeline() {
                 <div className="space-y-1.5">
                   <Label>Description</Label>
                   <Textarea
-                    placeholder="Event description..."
+                    placeholder="Achievement description..."
                     className="rounded-xl resize-none"
                     rows={3}
                     value={formData.description}
@@ -295,39 +283,25 @@ export default function Timeline() {
                   />
                 </div>
                 <div className="space-y-1.5">
-
-                  <Label>Session Date</Label>
+                  <Label>Achievement Date</Label>
                   <Input
                     type="date"
                     className="rounded-xl"
-                    value={formData.session_date}
-                    onChange={(e) => setFormData({ ...formData, session_date: e.target.value })}
+                    value={formData.achievement_date}
+                    onChange={(e) => setFormData({ ...formData, achievement_date: e.target.value })}
                   />
                 </div>
                 <div className="space-y-1.5">
                   <Label>Category</Label>
                   <Input
-                    placeholder="e.g., Workshop, Seminar"
+                    placeholder="e.g., Award, Certificate, Recognition"
                     className="rounded-xl"
                     value={formData.category}
                     onChange={(e) => setFormData({ ...formData, category: e.target.value })}
                   />
                 </div>
-                <div className="space-y-1.5">
-                  <Label>Type</Label>
-                  <select
-                    className="w-full px-3 py-2 rounded-xl border border-border bg-background"
-                    value={formData.type}
-                    onChange={(e) => setFormData({ ...formData, type: e.target.value })}
-                  >
-                    <option value="video">Video</option>
-                    <option value="image">Image</option>
-                    <option value="document">Document</option>
-                    <option value="other">Other</option>
-                  </select>
-                </div>
                 <ImageUpload
-                  label="Timeline Media"
+                  label="Achievement Image"
                   onImageUpload={(url) => setFormData({ ...formData, image_url: url })}
                   currentImage={formData.image_url}
                 />
@@ -344,14 +318,14 @@ export default function Timeline() {
                   <Button variant="outline" className="rounded-xl" onClick={() => setOpen(false)} disabled={submitting}>
                     Cancel
                   </Button>
-                  <Button className="rounded-xl" onClick={handleAddEntry} disabled={submitting}>
+                  <Button className="rounded-xl" onClick={handleAddAchievement} disabled={submitting}>
                     {submitting ? (
                       <>
                         <Loader2 className="w-3.5 h-3.5 mr-1 animate-spin" />
-                        Creating...
+                        Adding...
                       </>
                     ) : (
-                      "Create"
+                      "Add"
                     )}
                   </Button>
                 </div>
@@ -367,19 +341,19 @@ export default function Timeline() {
           onOpenChange={(isOpen) => {
             setEditOpen(isOpen);
             if (!isOpen) {
-              setEditingEntry(null);
+              setEditingAchievement(null);
             }
           }}
         >
-          <DialogContent className="rounded-2xl sm:max-w-md">
+          <DialogContent className="rounded-2xl sm:max-w-md max-h-[90vh] overflow-y-auto">
             <DialogHeader>
-              <DialogTitle>Edit Timeline Entry</DialogTitle>
+              <DialogTitle>Edit Achievement</DialogTitle>
             </DialogHeader>
             <div className="space-y-4 pt-2">
               <div className="space-y-1.5">
                 <Label>Title *</Label>
                 <Input
-                  placeholder="e.g., SRL Foundation Ceremony"
+                  placeholder="e.g., Won Best Research Paper"
                   className="rounded-xl"
                   value={editFormData.title}
                   onChange={(e) => setEditFormData({ ...editFormData, title: e.target.value })}
@@ -388,7 +362,7 @@ export default function Timeline() {
               <div className="space-y-1.5">
                 <Label>Description</Label>
                 <Textarea
-                  placeholder="Event description..."
+                  placeholder="Achievement description..."
                   className="rounded-xl resize-none"
                   rows={3}
                   value={editFormData.description}
@@ -396,39 +370,25 @@ export default function Timeline() {
                 />
               </div>
               <div className="space-y-1.5">
-
-                <Label>Session Date</Label>
+                <Label>Achievement Date</Label>
                 <Input
                   type="date"
                   className="rounded-xl"
-                  value={editFormData.session_date}
-                  onChange={(e) => setEditFormData({ ...editFormData, session_date: e.target.value })}
+                  value={editFormData.achievement_date}
+                  onChange={(e) => setEditFormData({ ...editFormData, achievement_date: e.target.value })}
                 />
               </div>
               <div className="space-y-1.5">
                 <Label>Category</Label>
                 <Input
-                  placeholder="e.g., Workshop, Seminar"
+                  placeholder="e.g., Award, Certificate, Recognition"
                   className="rounded-xl"
                   value={editFormData.category}
                   onChange={(e) => setEditFormData({ ...editFormData, category: e.target.value })}
                 />
               </div>
-              <div className="space-y-1.5">
-                <Label>Type</Label>
-                <select
-                  className="w-full px-3 py-2 rounded-xl border border-border bg-background"
-                  value={editFormData.type}
-                  onChange={(e) => setEditFormData({ ...editFormData, type: e.target.value })}
-                >
-                  <option value="video">Video</option>
-                  <option value="image">Image</option>
-                  <option value="document">Document</option>
-                  <option value="other">Other</option>
-                </select>
-              </div>
               <ImageUpload
-                label="Timeline Media"
+                label="Achievement Image"
                 onImageUpload={(url) => setEditFormData({ ...editFormData, image_url: url })}
                 currentImage={editFormData.image_url}
               />
@@ -445,14 +405,14 @@ export default function Timeline() {
                 <Button variant="outline" className="rounded-xl" onClick={() => setEditOpen(false)} disabled={editSubmitting}>
                   Cancel
                 </Button>
-                <Button className="rounded-xl" onClick={handleUpdateEntry} disabled={editSubmitting}>
+                <Button className="rounded-xl" onClick={handleUpdateAchievement} disabled={editSubmitting}>
                   {editSubmitting ? (
                     <>
                       <Loader2 className="w-3.5 h-3.5 mr-1 animate-spin" />
-                      Saving...
+                      Updating...
                     </>
                   ) : (
-                    "Save Changes"
+                    "Update"
                   )}
                 </Button>
               </div>
@@ -461,17 +421,17 @@ export default function Timeline() {
         </Dialog>
       )}
 
-      {!canEdit && <p className="text-xs text-muted-foreground">You have read-only access. Only admin can manage timeline entries.</p>}
+      {!canEdit && <p className="text-xs text-muted-foreground">You have read-only access. Only admin can manage achievements.</p>}
 
-      {entries.length === 0 ? (
-        <div className="text-center py-12 text-muted-foreground">No timeline entries found. Add your first timeline entry.</div>
+      {achievements.length === 0 ? (
+        <div className="text-center py-12 text-muted-foreground">No achievements found. Add your first achievement.</div>
       ) : (
         <div className="relative">
           <div className="absolute left-[19px] top-0 bottom-0 w-px bg-border" />
           <div className="space-y-4">
-            {entries.map((entry, i) => (
+            {achievements.map((achievement, i) => (
               <motion.div
-                key={entry.id}
+                key={achievement.id}
                 initial={{ opacity: 0, x: -12 }}
                 animate={{ opacity: 1, x: 0 }}
                 transition={{ delay: i * 0.08, duration: 0.3 }}
@@ -481,13 +441,13 @@ export default function Timeline() {
                 <div className="glass-card rounded-2xl p-5">
                   <div className="flex items-start justify-between gap-4">
                     <div>
-                      <p className="text-xs font-semibold uppercase tracking-[0.1em] text-primary">SN: {entry.serial_no}</p>
-                      <h3 className="text-sm font-semibold text-foreground mt-1">{entry.title}</h3>
-                      {entry.category && (
-                        <p className="text-xs text-muted-foreground mt-1">Category: {entry.category}</p>
+                      <p className="text-xs font-semibold uppercase tracking-[0.1em] text-primary">SN: {achievement.serial_no}</p>
+                      <h3 className="text-sm font-semibold text-foreground mt-1">{achievement.title}</h3>
+                      {achievement.category && (
+                        <p className="text-xs text-muted-foreground mt-1">Category: {achievement.category}</p>
                       )}
-                      {entry.description && (
-                        <p className="text-sm text-muted-foreground mt-2 leading-relaxed line-clamp-2">{entry.description}</p>
+                      {achievement.description && (
+                        <p className="text-sm text-muted-foreground mt-2 leading-relaxed line-clamp-2">{achievement.description}</p>
                       )}
                     </div>
                     {canEdit && (
@@ -496,15 +456,15 @@ export default function Timeline() {
                           variant="ghost"
                           size="icon"
                           className="h-7 w-7 rounded-lg"
-                          onClick={() => handleStartEdit(entry)}
+                          onClick={() => handleStartEdit(achievement)}
                         >
                           <Pencil className="w-3.5 h-3.5" />
                         </Button>
                         <Button
                           variant="ghost"
                           size="icon"
-                          className="h-7 w-7 rounded-lg text-destructive"
-                          onClick={() => handleDeleteEntry(entry.id)}
+                          className="h-7 w-7 rounded-lg text-destructive hover:text-destructive"
+                          onClick={() => handleDeleteAchievement(achievement.id)}
                         >
                           <Trash2 className="w-3.5 h-3.5" />
                         </Button>
