@@ -73,54 +73,9 @@ export default function Login() {
         description: "Admin access enabled.",
       });
 
-      navigate("/");
+      navigate("/", { replace: true });
     } catch (error: any) {
-      toast({
-        variant: "destructive",
-        title: "Login failed",
-        description: error.message || "Invalid credentials. Please try again.",
-      });
-    } finally {
-      setLoading(false);
-    }
-  };
-        throw new Error("No account found for this email address.");
-      }
-
-
-      const storedPassword = String(
-        matchedAuth.password ?? matchedAuth.login_password ?? matchedAuth.pass ?? matchedAuth.pwd ?? ""
-      ).trim();
-      if (!storedPassword || storedPassword !== passwordValue) {
-        throw new Error("Invalid password.");
-      }
-
-      const profileEmail = String(matchedAuth.email || normalizedEmail).trim().toLowerCase();
-      const profile = await prisma.students_details.findFirst({
-        where: { email: profileEmail },
-        select: { student_name: true, enrollment_no: true },
-      });
-      const memberType = String(matchedAuth.member_type || matchedAuth.role || "member").toLowerCase();
-      const isAdminLogin = normalizedEmail === "adminsrl@gmail.com" || String(matchedAuth.user_ID || "").trim().toLowerCase() === "adminsrl@gmail.com";
-      const role = isAdminLogin || memberType === "admin" ? "admin" : "member";
-      const enrollmentNo = String(matchedAuth.enrollment_no || profile?.enrollment_no || "").trim();
-      const displayName =
-        String(matchedAuth.student_name || matchedAuth.name || profile?.student_name || "").trim() || normalizedEmail;
-
-      saveSession({
-        email: profileEmail,
-        name: displayName,
-        enrollmentNo,
-        role,
-      });
-
-      toast({
-        title: "Login successful",
-        description: role === "admin" ? "Admin access enabled." : "Read-only member access enabled.",
-      });
-
-      navigate("/");
-    } catch (error: any) {
+      console.error("Login error:", error);
       toast({
         variant: "destructive",
         title: "Login failed",
@@ -231,7 +186,7 @@ export default function Login() {
                   {loading ? (
                     <span className="flex items-center gap-2">
                       <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-                      Loggin in...
+                      Logging in...
                     </span>
                   ) : (
                     "Log in"
