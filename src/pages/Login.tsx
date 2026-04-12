@@ -9,7 +9,8 @@ import { Label } from '../components/ui/label';
 import { Mail, Lock, Eye, EyeOff } from 'lucide-react';
 import { useToast } from '../hooks/use-toast';
 import { isAuthenticated, saveSession } from '../lib/auth';
-import prisma from '../lib/prismaClient';
+
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || "http://127.0.0.1:8000";
 
 export default function Login() {
   const [email, setEmail] = useState("");
@@ -30,24 +31,59 @@ export default function Login() {
     setLoading(true);
 
     try {
-      const loginId = email.trim();
-      const normalizedEmail = loginId.toLowerCase();
+      const loginEmail = email.trim().toLowerCase();
       const passwordValue = password.trim();
 
-
-      // Try to find user by user_ID, user_id, email, or username
-      let matchedAuth = await prisma.authorization.findFirst({
-        where: {
-          OR: [
-            { user_ID: loginId },
-            { user_id: loginId },
-            { email: normalizedEmail },
-            { username: normalizedEmail },
-          ],
+      // Call the backend API for login
+      const response = await fetch(`${API_BASE_URL}/api/admin/login`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
         },
+        body: JSON.stringify({
+          email: loginEmail,
+          password: passwordValue,
+        }),
       });
 
-      if (!matchedAuth) {
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.message || "Invalid credentials");
+      }
+
+      const data = await response.json();
+
+      if (!data.success || !data.token) {
+        throw new Error(data.message || "Login failed");
+      }
+
+      // Save session with user data from response
+      saveSession({
+        email: data.user.email,
+        name: data.user.name,
+        enrollmentNo: data.user.enrollmentNo,
+        role: data.user.role || "admin",
+      });
+
+      // Store the token
+      localStorage.setItem("authToken", data.token);
+
+      toast({
+        title: "Login successful",
+        description: "Admin access enabled.",
+      });
+
+      navigate("/");
+    } catch (error: any) {
+      toast({
+        variant: "destructive",
+        title: "Login failed",
+        description: error.message || "Invalid credentials. Please try again.",
+      });
+    } finally {
+      setLoading(false);
+    }
+  };
         throw new Error("No account found for this email address.");
       }
 
