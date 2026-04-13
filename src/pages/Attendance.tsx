@@ -65,7 +65,11 @@ export default function Attendance() {
         }
 
         // Filter attendance for selected date
-        const attData = Array.isArray(attResponse.data) ? attResponse.data.filter((row: any) => row.date === attendanceDate) : [];
+        const normalizedSelectedDate = attendanceDate.includes('T') ? attendanceDate.split('T')[0] : attendanceDate;
+        const attData = Array.isArray(attResponse.data) ? attResponse.data.filter((row: any) => {
+          const rowDate = typeof row.date === 'string' ? row.date.split('T')[0] : new Date(row.date).toISOString().split('T')[0];
+          return rowDate === normalizedSelectedDate;
+        }) : [];
         const stuData = Array.isArray(stuResponse.data) ? stuResponse.data : [];
 
         const stuMap: { [enrollment_no: string]: { name: string; initials: string; photo_url?: string } } = {};
@@ -178,8 +182,10 @@ export default function Attendance() {
       {showAddForm && (
         <form onSubmit={handleAddAttendance} className="mb-4 p-3 sm:p-4 border rounded bg-card flex flex-col gap-3 max-w-2xl">
           <div className="flex flex-col sm:flex-row gap-2 sm:items-center mb-2">
-            <label className="font-medium text-sm shrink-0">Date:</label>
+            <label htmlFor="attendance-date" className="font-medium text-sm shrink-0">Date:</label>
             <input
+              id="attendance-date"
+              name="attendance-date"
               type="date"
               value={addDate}
               onChange={e => setAddDate(e.target.value)}
@@ -203,6 +209,8 @@ export default function Attendance() {
                     <td className="px-2 py-1 text-center">{student.enrollment_no}</td>
                     <td className="px-2 py-1 text-center">
                       <input
+                        id={`hours-${student.enrollment_no}`}
+                        name={`hours-${student.enrollment_no}`}
                         type="number"
                         step="0.5"
                         min="0"
@@ -228,14 +236,19 @@ export default function Attendance() {
           Attendance for
         </h2>
         <select
+          id="attendance-date-select"
+          name="attendance-date-select"
           value={attendanceDate || ''}
           onChange={e => setAttendanceDate(e.target.value)}
           className="px-2 py-1.5 sm:py-1 rounded border text-sm flex-1 sm:flex-none"
           style={{ color: 'black' }}
         >
-          {allDates.map(date => (
-            <option key={date} value={date}>{date}</option>
-          ))}
+          {allDates.map(date => {
+            const displayDate = typeof date === 'string' ? date.split('T')[0] : new Date(date).toISOString().split('T')[0];
+            return (
+              <option key={date} value={date}>{displayDate}</option>
+            );
+          })}
         </select>
       </motion.div>
       <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.1 }} className="glass-card rounded-2xl overflow-hidden">

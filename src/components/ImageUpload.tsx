@@ -133,6 +133,8 @@ export default function ImageUpload({
         onClick={() => fileInputRef.current?.click()}
       >
         <input
+          id="image-file-upload"
+          name="image-file-upload"
           ref={fileInputRef}
           type="file"
           accept="image/jpeg,image/png,image/gif,image/webp"
