@@ -6,15 +6,21 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from 
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
-import * as api from "@/lib/api";
 import { useToast } from "@/hooks/use-toast";
 import { hasWriteAccess } from "@/lib/auth";
+import { adminAPI } from "@/lib/adminApi";
+import ImageUpload from "@/components/ImageUpload";
 
 interface Activity {
-  id: number;
+  id: string | number;
   title: string;
-  date: string;
+  date?: string;
+  enrollment_no?: string;
   description?: string;
+  category?: string;
+  hours?: number;
+  status?: string;
+  Photo?: string;
 }
 
 export default function Activities() {
@@ -25,13 +31,20 @@ export default function Activities() {
   const [editingActivity, setEditingActivity] = useState<Activity | null>(null);
   const [formData, setFormData] = useState({
     title: "",
-    date: "",
+    category: "",
     description: "",
+    date: new Date().toISOString().split('T')[0],
+    enrollment_no: "",
+    hours: "",
+    Photo: "",
   });
   const [editFormData, setEditFormData] = useState({
     title: "",
-    date: "",
+    category: "",
     description: "",
+    date: "",
+    hours: "",
+    Photo: "",
   });
   const { toast } = useToast();
   const canEdit = hasWriteAccess();
@@ -40,47 +53,31 @@ export default function Activities() {
     fetchActivities();
   }, []);
 
-  const parseActivityDate = (value: string) => {
-    if (!value) return null;
-
-    const trimmed = value.trim();
-    const direct = new Date(trimmed);
-    if (!Number.isNaN(direct.getTime())) {
-      return direct;
-    }
-
-    const slashOrDash = trimmed.match(/^(\d{1,2})[\/-](\d{1,2})[\/-](\d{4})$/);
-    if (slashOrDash) {
-      const [, p1, p2, year] = slashOrDash;
-      const day = Number.parseInt(p1, 10);
-      const month = Number.parseInt(p2, 10);
-      const parsed = new Date(Number.parseInt(year, 10), month - 1, day);
-      if (!Number.isNaN(parsed.getTime())) {
-        return parsed;
-      }
-    }
-
-    const compact = trimmed.match(/^(\d{4})(\d{2})(\d{2})$/);
-    if (compact) {
-      const [, year, month, day] = compact;
-      const parsed = new Date(Number.parseInt(year, 10), Number.parseInt(month, 10) - 1, Number.parseInt(day, 10));
-      if (!Number.isNaN(parsed.getTime())) {
-        return parsed;
-      }
-    }
-
-    return null;
-  };
-
   const fetchActivities = async () => {
-    setLoading(true);
     try {
-      const data = await api.getActivities();
-      setActivities(data || []);
-    } catch (error) {
+      setLoading(true);
+      const response = await adminAPI.getActivities();
+      
+      if (response.success && Array.isArray(response.data)) {
+        setActivities(response.data.sort((a, b) => {
+          const dateA = new Date(a.date || 0).getTime();
+          const dateB = new Date(b.date || 0).getTime();
+          return dateB - dateA;
+        }));
+      } else {
+        setActivities([]);
+      }
+    } catch (error: any) {
+      console.error('API error:', error);
+      toast({
+        variant: "destructive",
+        title: "Error fetching activities",
+        description: error.message,
+      });
       setActivities([]);
+    } finally {
+      setLoading(false);
     }
-    setLoading(false);
   };
 
   const handleAddActivity = async () => {
@@ -92,87 +89,49 @@ export default function Activities() {
       });
       return;
     }
-    if (!formData.title || !formData.date) {
-      toast({
-        variant: "destructive",
-        title: "Please fill in required fields",
-        description: "Title and date are required.",
-      });
-      return;
-    }
+
     try {
-      await api.createActivity({
+      if (!formData.title) {
+        toast({
+          variant: "destructive",
+          title: "Validation error",
+          description: "Title is required.",
+        });
+        return;
+      }
+
+      const response = await adminAPI.createActivity({
         title: formData.title.trim(),
-        date: formData.date,
-        description: formData.description.trim(),
+        category: formData.category || null,
+        description: formData.description.trim() || null,
+        date: formData.date || new Date().toISOString(),
+        enrollment_no: formData.enrollment_no || null,
+        hours: formData.hours ? parseFloat(formData.hours) : 0,
+        Photo: formData.Photo.trim() || null,
       });
-      toast({ title: "Activity added successfully" });
-      setOpen(false);
-      setFormData({ title: "", date: "", description: "" });
-      fetchActivities();
+
+      if (response.success) {
+        toast({
+          title: "Activity added successfully",
+        });
+
+        setOpen(false);
+        setFormData({
+          title: "",
+          category: "",
+          description: "",
+          date: new Date().toISOString().split('T')[0],
+          enrollment_no: "",
+          hours: "",
+          Photo: "",
+        });
+        fetchActivities();
+      }
     } catch (error: any) {
+      console.error('Error adding activity:', error);
       toast({
         variant: "destructive",
         title: "Error adding activity",
-        description: error.message,
-      });
-    }
-  };
-
-  const handleUpdateActivity = async () => {
-    if (!canEdit) {
-      toast({
-        variant: "destructive",
-        title: "Read-only access",
-        description: "Only admin can edit activities.",
-      });
-      return;
-    }
-    if (!editingActivity) return;
-    if (!editFormData.title.trim() || !editFormData.date) {
-      toast({
-        variant: "destructive",
-        title: "Please fill in required fields",
-        description: "Title and date are required.",
-      });
-      return;
-    }
-    try {
-      await api.updateActivity(editingActivity.id, {
-        title: editFormData.title.trim(),
-        date: editFormData.date,
-        description: editFormData.description.trim(),
-      });
-      toast({ title: "Activity updated successfully" });
-      setEditOpen(false);
-      setEditingActivity(null);
-      fetchActivities();
-    } catch (error: any) {
-      toast({
-        variant: "destructive",
-        title: "Error updating activity",
-        description: error.message,
-      });
-    }
-  };
-
-  const handleDeleteActivity = async (id: number) => {
-    if (!canEdit) {
-      toast({
-        variant: "destructive",
-        title: "Read-only access",
-        description: "Only admin can delete activities.",
-      });
-      return;
-    }
-    try {
-      await api.deleteActivity(id);
-      toast({ title: "Activity deleted successfully" });
-      fetchActivities();
-    } catch (error: any) {
-      toast({
-        variant: "destructive",
-        title: "Error deleting activity",
         description: error.message,
       });
     }
@@ -189,24 +148,98 @@ export default function Activities() {
     }
 
     setEditingActivity(activity);
-    const parsedDate = parseActivityDate(activity.date);
-    const isoDate = parsedDate ? parsedDate.toISOString().split('T')[0] : "";
+    const dateStr = activity.date ? activity.date.split('T')[0] : new Date().toISOString().split('T')[0];
     setEditFormData({
       title: activity.title,
-      date: isoDate,
+      category: activity.category || "",
       description: activity.description || "",
+      date: dateStr,
+      hours: activity.hours?.toString() || "",
+      Photo: activity.Photo || "",
     });
     setEditOpen(true);
   };
 
-
-  // Format date for display
-  const formatDate = (dateString: string) => {
-    const parsed = parseActivityDate(dateString);
-    if (!parsed) {
-      return dateString || "Date unavailable";
+  const handleUpdateActivity = async () => {
+    if (!canEdit || !editingActivity) {
+      toast({
+        variant: "destructive",
+        title: "Error",
+        description: "Cannot update activity.",
+      });
+      return;
     }
-    return parsed.toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' });
+
+    try {
+      if (!editFormData.title.trim()) {
+        toast({
+          variant: "destructive",
+          title: "Validation error",
+          description: "Title is required.",
+        });
+        return;
+      }
+
+      const response = await adminAPI.updateActivity(String(editingActivity.id), {
+        title: editFormData.title.trim(),
+        category: editFormData.category || null,
+        description: editFormData.description.trim() || null,
+        date: editFormData.date,
+        hours: editFormData.hours ? parseFloat(editFormData.hours) : 0,
+        Photo: editFormData.Photo.trim() || null,
+      });
+
+      if (response.success) {
+        toast({
+          title: "Activity updated successfully",
+        });
+        setEditOpen(false);
+        setEditingActivity(null);
+        fetchActivities();
+      }
+    } catch (error: any) {
+      toast({
+        variant: "destructive",
+        title: "Error updating activity",
+        description: error.message,
+      });
+    }
+  };
+
+  const handleDeleteActivity = async (id: string | number) => {
+    if (!canEdit) {
+      toast({
+        variant: "destructive",
+        title: "Read-only access",
+        description: "Only admin can delete activities.",
+      });
+      return;
+    }
+
+    try {
+      const response = await adminAPI.deleteActivity(String(id));
+      if (response.success) {
+        toast({
+          title: "Activity deleted successfully",
+        });
+        fetchActivities();
+      }
+    } catch (error: any) {
+      toast({
+        variant: "destructive",
+        title: "Error deleting activity",
+        description: error.message,
+      });
+    }
+  };
+
+  const formatDate = (dateString?: string) => {
+    if (!dateString) return "Date unavailable";
+    try {
+      return new Date(dateString).toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' });
+    } catch {
+      return dateString;
+    }
   };
 
   if (loading) {
@@ -240,7 +273,16 @@ export default function Activities() {
                   />
                 </div>
                 <div className="space-y-1.5">
-                  <Label>Date *</Label>
+                  <Label>Category</Label>
+                  <Input 
+                    placeholder="e.g. Workshop, Seminar" 
+                    className="rounded-xl"
+                    value={formData.category}
+                    onChange={(e) => setFormData({ ...formData, category: e.target.value })}
+                  />
+                </div>
+                <div className="space-y-1.5">
+                  <Label>Date</Label>
                   <Input 
                     type="date" 
                     className="rounded-xl"
@@ -248,6 +290,21 @@ export default function Activities() {
                     onChange={(e) => setFormData({ ...formData, date: e.target.value })}
                   />
                 </div>
+                <div className="space-y-1.5">
+                  <Label>Hours</Label>
+                  <Input 
+                    type="number" 
+                    placeholder="e.g. 2" 
+                    className="rounded-xl"
+                    value={formData.hours}
+                    onChange={(e) => setFormData({ ...formData, hours: e.target.value })}
+                  />
+                </div>
+                <ImageUpload
+                  label="Activity Photo"
+                  onImageUpload={(url) => setFormData({ ...formData, Photo: url })}
+                  currentImage={formData.Photo}
+                />
                 <div className="space-y-1.5">
                   <Label>Description</Label>
                   <Textarea 
@@ -291,7 +348,16 @@ export default function Activities() {
                 />
               </div>
               <div className="space-y-1.5">
-                <Label>Date *</Label>
+                <Label>Category</Label>
+                <Input
+                  placeholder="e.g. Workshop, Seminar"
+                  className="rounded-xl"
+                  value={editFormData.category}
+                  onChange={(e) => setEditFormData({ ...editFormData, category: e.target.value })}
+                />
+              </div>
+              <div className="space-y-1.5">
+                <Label>Date</Label>
                 <Input
                   type="date"
                   className="rounded-xl"
@@ -299,6 +365,21 @@ export default function Activities() {
                   onChange={(e) => setEditFormData({ ...editFormData, date: e.target.value })}
                 />
               </div>
+              <div className="space-y-1.5">
+                <Label>Hours</Label>
+                <Input
+                  type="number"
+                  placeholder="e.g. 2"
+                  className="rounded-xl"
+                  value={editFormData.hours}
+                  onChange={(e) => setEditFormData({ ...editFormData, hours: e.target.value })}
+                />
+              </div>
+              <ImageUpload
+                label="Activity Photo"
+                onImageUpload={(url) => setEditFormData({ ...editFormData, Photo: url })}
+                currentImage={editFormData.Photo}
+              />
               <div className="space-y-1.5">
                 <Label>Description</Label>
                 <Textarea
@@ -317,65 +398,57 @@ export default function Activities() {
           </DialogContent>
         </Dialog>
       )}
-      {!canEdit && <p className="text-xs text-muted-foreground">You have read-only access. Only admin can manage activities.</p>}
 
-      {/* Timeline */}
-      {activities.length === 0 ? (
-        <div className="text-center py-12 text-muted-foreground">
-          No activities found. Add your first activity!
-        </div>
-      ) : (
-        <div className="relative">
-          <div className="absolute left-[19px] top-0 bottom-0 w-px bg-border" />
-          <div className="space-y-4">
-            {activities.map((activity, i) => (
-              <motion.div
+      {/* Activities List */}
+      <motion.div
+        initial={{ opacity: 0, y: 8 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.3 }}
+        className="glass-card rounded-2xl overflow-hidden"
+      >
+        {activities.length === 0 ? (
+          <div className="text-center py-12 text-muted-foreground text-sm">
+            No activities found.
+          </div>
+        ) : (
+          <div className="space-y-2 p-4">
+            {activities.map((activity) => (
+              <div
                 key={activity.id}
-                initial={{ opacity: 0, x: -12 }}
-                animate={{ opacity: 1, x: 0 }}
-                transition={{ delay: i * 0.08, duration: 0.3 }}
-                className="relative pl-12"
+                className="flex items-center justify-between p-4 rounded-xl border border-border/50 hover:bg-muted/30 transition-colors"
               >
-                <div className="absolute left-[14px] top-5 w-2.5 h-2.5 rounded-full bg-primary border-2 border-background" />
-                <div className="glass-card rounded-2xl p-5">
-                  <div className="flex items-start justify-between gap-4">
-                    <div>
-                      <h3 className="text-sm font-semibold text-foreground">{activity.title}</h3>
-                      <div className="flex items-center gap-1.5 mt-1 text-xs text-muted-foreground">
-                        <Calendar className="w-3 h-3" />
-                        {formatDate(activity.date)}
-                      </div>
-                      {activity.description && (
-                        <p className="text-sm text-muted-foreground mt-2 leading-relaxed">{activity.description}</p>
-                      )}
-                    </div>
-                    {canEdit && (
-                      <div className="flex gap-1 shrink-0">
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          className="h-7 w-7 rounded-lg"
-                          onClick={() => handleStartEdit(activity)}
-                        >
-                          <Edit className="w-3.5 h-3.5" />
-                        </Button>
-                        <Button 
-                          variant="ghost" 
-                          size="icon" 
-                          className="h-7 w-7 rounded-lg text-destructive"
-                          onClick={() => handleDeleteActivity(activity.id)}
-                        >
-                          <Trash2 className="w-3.5 h-3.5" />
-                        </Button>
-                      </div>
-                    )}
+                <div className="flex items-center gap-3 flex-1">
+                  <Calendar className="w-4 h-4 text-primary flex-shrink-0" />
+                  <div className="flex-1 min-w-0">
+                    <p className="font-medium text-foreground truncate">{activity.title}</p>
+                    <p className="text-xs text-muted-foreground">{formatDate(activity.date)}</p>
                   </div>
                 </div>
-              </motion.div>
+                {canEdit && (
+                  <div className="flex gap-2 ml-2">
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => handleStartEdit(activity)}
+                      className="rounded-lg"
+                    >
+                      <Edit className="w-4 h-4" />
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => handleDeleteActivity(activity.id)}
+                      className="rounded-lg text-destructive hover:text-destructive"
+                    >
+                      <Trash2 className="w-4 h-4" />
+                    </Button>
+                  </div>
+                )}
+              </div>
             ))}
           </div>
-        </div>
-      )}
+        )}
+      </motion.div>
     </div>
   );
 }

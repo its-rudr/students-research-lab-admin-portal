@@ -247,6 +247,8 @@ export function FilteredGoogleSheetData() {
   return (
     <div className="space-y-4">
       <input
+        id="sheet-search"
+        name="sheet-search"
         type="text"
         placeholder="Search..."
         value={searchTerm}

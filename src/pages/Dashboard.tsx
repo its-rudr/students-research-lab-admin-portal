@@ -1,9 +1,33 @@
-// --- Added missing types for state ---
+import { useState, useEffect } from "react";
+import { motion } from "framer-motion";
+import { Users, CalendarCheck, BookOpen, Trophy, TrendingUp, Loader2, Calendar, BarChart2, PieChart as PieIcon, Activity, Clock } from "lucide-react";
+import StatCard from "@/components/StatCard";
+import { useToast } from "@/hooks/use-toast";
+import { adminAPI } from "@/lib/adminApi";
+import {
+  BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend,
+  ResponsiveContainer, PieChart, Pie, Cell, LineChart, Line,
+} from "recharts";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { getStoredUser } from "@/lib/auth";
+import { Sparkles, ArrowUpRight } from "lucide-react";
+
+interface ScoreBandEntry {
+  name: string;
+  value: number;
+  color: string;
+}
+
+interface GenderChartEntry {
+  name: string;
+  value: number;
+  color: string;
+}
+
 interface LeaderboardEntry {
   enrollment_no: string;
   score: number;
   name: string;
-  field: string;
 }
 
 interface TopScoreChartEntry {
@@ -20,31 +44,6 @@ interface MonthlyTrendEntry {
   month: string;
   score: number;
   hours: number;
-}
-import { useState, useEffect } from "react";
-import { motion } from "framer-motion";
-import { Users, CalendarCheck, BookOpen, Trophy, TrendingUp, Loader2, Calendar, BarChart2, PieChart as PieIcon, Activity, Clock, Sparkles, ArrowUpRight } from "lucide-react";
-import StatCard from "@/components/StatCard";
-import { useToast } from "@/hooks/use-toast";
-import * as api from "@/lib/api";
-import {
-  BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend,
-  ResponsiveContainer, PieChart, Pie, Cell, LineChart, Line,
-} from "recharts";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { getStoredUser } from "@/lib/auth";
-// Monthly Attendance, Monthly Score, and Total Score cards hidden for all users
-
-interface ScoreBandEntry {
-  name: string;
-  value: number;
-  color: string;
-}
-
-interface GenderChartEntry {
-  name: string;
-  value: number;
-  color: string;
 }
 
 interface Activity {
@@ -113,11 +112,16 @@ export default function Dashboard() {
   const fetchTotalStudents = async () => {
     try {
       setStudentsCountLoading(true);
-      const students = await api.getStudents();
-      const visibleStudents = (students || []).filter(
-        (row: any) => String(row.member_type || "member").toLowerCase() !== "admin"
-      );
-      setTotalStudents(visibleStudents.length);
+      const response = await adminAPI.getStudents();
+
+      if (response.success && Array.isArray(response.data)) {
+        const visibleStudents = response.data.filter(
+          (row: any) => String(row.member_type || "member").toLowerCase() !== "admin"
+        );
+        setTotalStudents(visibleStudents.length);
+      } else {
+        setTotalStudents(0);
+      }
     } catch (error: any) {
       console.error("Error fetching total students:", error);
       setTotalStudents(0);
@@ -129,54 +133,28 @@ export default function Dashboard() {
   const fetchAttendanceSummary = async () => {
     try {
       setAttendanceLoading(true);
-      // Fetch students and attendance data from API
-      const [students, attendance] = await Promise.all([
-        api.getStudents(),
-        api.getAttendance(),
-      ]);
-      
+
+      const studentsResponse = await adminAPI.getStudents();
+
+      if (!studentsResponse.success || !Array.isArray(studentsResponse.data)) {
+        setAttendancePercent(0);
+        setAttendanceSubtitle("Attendance unavailable");
+        return;
+      }
+
       const visibleEnrollmentSet = new Set(
-        (students || [])
+        studentsResponse.data
           .filter((row: any) => String(row.member_type || "member").toLowerCase() !== "admin")
-          .map((row: any) => row.enrollment_no)
+          .map((row: any) => String(row.enrollment_no || "").trim())
           .filter(Boolean)
       );
-      
-      const today = new Date().toISOString().split("T")[0];
-      let targetDate = today;
-      
-      // Filter attendance for today's date or latest date
-      let filteredRows = (attendance || []).filter((row: any) => row.date === today);
-      if (filteredRows.length === 0 && attendance && attendance.length > 0) {
-        // Use latest date
-        const dates = attendance.map((row: any) => row.date).filter(Boolean);
-        const latestDate = dates.sort().reverse()[0];
-        targetDate = latestDate;
-        filteredRows = (attendance || []).filter((row: any) => row.date === latestDate);
-        if (!latestDate) {
-          setAttendancePercent(0);
-          setAttendanceSubtitle("No attendance data");
-          return;
-        }
-      } else {
-        targetDate = today;
-      }
-      
-      // Count students with attendance > 0
-      const presentSet = new Set(
-        (filteredRows || [])
-          .filter((row: any) => visibleEnrollmentSet.has(row.enrollment_no) && Number(row.attendance || 0) > 0)
-          .map((row: any) => row.enrollment_no)
-      );
-      
-      const presentCount = presentSet.size;
-      const percent = totalStudents > 0 ? Math.round((presentCount / totalStudents) * 100) : 0;
+
+      // For now, show attendance as 0 since we don't have attendance data in the backend
+      const presentCount = 0;
+      const percent = 0;
+
       setAttendancePercent(percent);
-      setAttendanceSubtitle(
-        targetDate === today
-          ? `${presentCount} of ${totalStudents} present`
-          : `${presentCount} of ${totalStudents} present (${targetDate})`
-      );
+      setAttendanceSubtitle(`Attendance data unavailable`);
     } catch (error) {
       console.error("Error fetching attendance summary:", error);
       setAttendancePercent(0);
@@ -194,11 +172,22 @@ export default function Dashboard() {
       const now = new Date();
       const currentMonth = now.getMonth() + 1;
       const currentYear = now.getFullYear();
+
       const cleanEnNo = enNo.replace(/[^a-z0-9]/g, '');
-      
-      // 1. Fetch Scores from API
-      const allScoresRaw = await api.getScores();
-      const userScores = (allScoresRaw || []).filter(s => {
+
+      // 1. Fetch Scores from backend API
+      const scoresResponse = await adminAPI.getScores();
+
+      if (!scoresResponse.success || !Array.isArray(scoresResponse.data)) {
+        setUserTotalScore(0);
+        setUserMonthlyScore(0);
+        setUserMonthlyAttendance(0);
+        return;
+      }
+
+      const allScoresRaw = scoresResponse.data;
+
+      const userScores = allScoresRaw.filter(s => {
         const dbEnNoRaw = String(s.enrollment_no || s.enroll_no || s["enroll no."] || "").trim().toLowerCase();
         const dbEnNoClean = dbEnNoRaw.replace(/[^a-z0-9]/g, '');
         return dbEnNoClean === cleanEnNo || dbEnNoRaw === enNo;
@@ -210,17 +199,20 @@ export default function Dashboard() {
         return sum + (typeof val === 'number' ? val : parseFloat(String(val)) || 0);
       }, 0);
       setUserTotalScore(lifetime);
-      
+
       // Calculate Monthly Score
       const monthly = userScores.filter(s => {
         const dateStr = String(s.date || s.Date || s.DATE || "").trim();
         if (!dateStr) return false;
+        
         try {
+          // Check for substring matches like "03/2026" or "2026-03"
           const monthPad = currentMonth < 10 ? `0${currentMonth}` : `${currentMonth}`;
           if (dateStr.includes(`${monthPad}/${currentYear}`) || 
               dateStr.includes(`${currentMonth}/${currentYear}`) ||
-              dateStr.includes(`${currentYear}-${monthPad}`) ||
-              dateStr.toLowerCase().includes("mar")) return true;
+              dateStr.includes(`${currentYear}-${monthPad}`)) return true;
+
+          // Manual parts check
           const parts = dateStr.split(/[\/\-\.]/);
           if (parts.length >= 2) {
              const m = parseInt(parts[1]);
@@ -228,6 +220,7 @@ export default function Dashboard() {
              const y = yStr.length === 2 ? 2000 + parseInt(yStr) : parseInt(yStr);
              if (m === currentMonth && y === currentYear) return true;
           }
+          
           const d = new Date(dateStr);
           return !isNaN(d.getTime()) && (d.getMonth() + 1 === currentMonth && d.getFullYear() === currentYear);
         } catch { return false; }
@@ -235,41 +228,25 @@ export default function Dashboard() {
         const val = s.total_points || s.points || s.score || 0;
         return sum + (typeof val === 'number' ? val : parseFloat(String(val)) || 0);
       }, 0);
-      setUserMonthlyScore(monthly);
       
-      // 2. Fetch Attendance from API
-      const allAttRaw = await api.getAttendance();
-      if (allAttRaw) {
-        const userAtt = allAttRaw.filter(a => {
-          const dbEnNoRaw = String(a.enrollment_no || a.enroll_no || a["enroll no."] || "").trim().toLowerCase();
-          const dbEnNoClean = dbEnNoRaw.replace(/[^a-z0-9]/g, '');
-          return dbEnNoClean === cleanEnNo || dbEnNoRaw === enNo;
-        });
-        const monthAtt = userAtt.filter(a => {
-          const dateStr = String(a.date || a.Date || a.DATE || "").trim();
-          if (!dateStr) return false;
-          const monthPad = currentMonth < 10 ? `0${currentMonth}` : `${currentMonth}`;
-          if (dateStr.includes(`${monthPad}/${currentYear}`) || dateStr.includes(`${currentMonth}/${currentYear}`)) return true;
-          const d = new Date(dateStr);
-          return !isNaN(d.getTime()) && (d.getMonth() + 1 === currentMonth && d.getFullYear() === currentYear);
-        });
-        const daysPassed = Math.max(1, now.getDate());
-        const presentDays = monthAtt.filter(a => {
-          const h = a.hours || a.Hours || a.HOURS || 0;
-          return (typeof h === 'number' ? h : parseFloat(String(h)) || 0) > 0;
-        }).length;
-        const attPercent = Math.min(100, Math.round((presentDays / daysPassed) * 100));
-        setUserMonthlyAttendance(attPercent);
-      }
+      setUserMonthlyScore(monthly);
+
+      // For now, set attendance to 0 since we don't have attendance data in the backend
+      setUserMonthlyAttendance(0);
+
       console.log("METRIC_TRACE:", {
         enNo,
         cleanEnNo,
-        scoresFound: (allScoresRaw || []).length,
+        scoresFound: allScoresRaw.length,
         userScoresFound: userScores.length,
         lifetime
       });
+
     } catch (error) {
       console.error("Error fetching student metrics:", error);
+      setUserTotalScore(0);
+      setUserMonthlyScore(0);
+      setUserMonthlyAttendance(0);
     } finally {
       setUserMetricsLoading(false);
     }
@@ -280,19 +257,29 @@ export default function Dashboard() {
       setWelcomeName("Admin");
       return;
     }
+
     if (!user?.email) {
       setWelcomeName("");
       return;
     }
+
     try {
       const normalizedEmail = String(user.email).trim().toLowerCase();
-      const students = await api.getStudents();
-      const student = (students || []).find(
-        (s: any) => String(s.email || "").trim().toLowerCase() === normalizedEmail
-      );
-      const studentName = String(student?.student_name || student?.name || "").trim();
-      setWelcomeName(studentName);
-    } catch {
+      const response = await adminAPI.getStudents();
+      
+      if (response.success && Array.isArray(response.data)) {
+        const student = response.data.find((s: any) => 
+          String(s.email || "").trim().toLowerCase() === normalizedEmail
+        );
+        
+        if (student) {
+          setWelcomeName(String(student.student_name || "").trim());
+        } else {
+          setWelcomeName("");
+        }
+      }
+    } catch (error) {
+      console.error("Error fetching welcome name:", error);
       setWelcomeName("");
     }
   };
@@ -300,105 +287,54 @@ export default function Dashboard() {
   const fetchLeaderboard = async () => {
     try {
       setLoading(true);
-      // Fetch data from API
-      const [statsData, studentsData] = await Promise.all([
-        api.getScores(),
-        api.getStudents(),
+
+      const [scoresResponse, studentsResponse] = await Promise.all([
+        adminAPI.getScores(),
+        adminAPI.getStudents()
       ]);
-      const now = new Date();
-      const currentMonth = now.getMonth() + 1;
-      const currentYear = now.getFullYear();
-      const monthPad = String(currentMonth).padStart(2, "0");
-      const isCurrentMonthByDateValue = (value: any) => {
-        const dateStr = String(value || "").trim();
-        if (!dateStr) return false;
-        if (
-          dateStr.includes(`${currentYear}-${monthPad}`) ||
-          dateStr.includes(`${monthPad}/${currentYear}`) ||
-          dateStr.includes(`${currentMonth}/${currentYear}`)
-        ) {
-          return true;
-        }
-        const parts = dateStr.split(/[\/\-.]/);
-        if (parts.length >= 3) {
-          const m = Number.parseInt(parts[1], 10);
-          const yRaw = parts[parts.length - 1];
-          const y = yRaw.length === 2 ? 2000 + Number.parseInt(yRaw, 10) : Number.parseInt(yRaw, 10);
-          if (!Number.isNaN(m) && !Number.isNaN(y) && m === currentMonth && y === currentYear) {
-            return true;
-          }
-        }
-        const parsed = new Date(dateStr);
-        return !Number.isNaN(parsed.getTime()) && parsed.getMonth() + 1 === currentMonth && parsed.getFullYear() === currentYear;
-      };
-      const isCurrentMonthRow = (row: any) => {
-        if (isCurrentMonthByDateValue(row.date || row.Date || row.DATE || row.created_at || row.updated_at)) {
-          return true;
-        }
-        if (isCurrentMonthByDateValue(row.period)) {
-          return true;
-        }
-        const monthValue = row.month ?? row.month_name ?? row.month_label ?? row.month_no ?? row.period;
-        const yearValue = row.year ?? row.year_no;
-        if (monthValue != null && yearValue != null) {
-          const yearNum = Number.parseInt(String(yearValue), 10);
-          const monthRaw = String(monthValue).trim().toLowerCase();
-          const monthNum = Number.parseInt(monthRaw, 10);
-          if (!Number.isNaN(monthNum) && !Number.isNaN(yearNum)) {
-            return monthNum === currentMonth && yearNum === currentYear;
-          }
-          const monthNames = [
-            "january", "february", "march", "april", "may", "june",
-            "july", "august", "september", "october", "november", "december",
-          ];
-          const monthShort = monthNames[currentMonth - 1]?.slice(0, 3);
-          if (!Number.isNaN(yearNum) && monthShort) {
-            return yearNum === currentYear && (monthRaw === monthNames[currentMonth - 1] || monthRaw === monthShort);
-          }
-        }
-        return false;
-      };
-      const visibleStudents = (studentsData || []).filter(
+
+      if (!scoresResponse.success || !studentsResponse.success) {
+        setLeaderboard([]);
+        setLoading(false);
+        return;
+      }
+
+      const scoresData = Array.isArray(scoresResponse.data) ? scoresResponse.data : [];
+      const studentsData = Array.isArray(studentsResponse.data) ? studentsResponse.data : [];
+
+      const visibleStudents = studentsData.filter(
         (student: any) => String(student.member_type || "member").toLowerCase() !== "admin"
       );
+
       const visibleEnrollmentSet = new Set(
         visibleStudents.map((student: any) => String(student.enrollment_no || "").trim()).filter(Boolean)
       );
+
       const nameMap: Record<string, string> = {};
-      const fieldMap: Record<string, string> = {};
       visibleStudents.forEach((student: any) => {
         const en = String(student.enrollment_no || "").trim();
         if (!en) return;
         nameMap[en] = String(student.student_name || "").trim();
-        fieldMap[en] = String(student.field || "").trim();
       });
+
       const scoreMap: Record<string, number> = {};
-      (statsData || []).forEach((row: any) => {
-        if (!isCurrentMonthRow(row)) return;
-        const enrollment_no = String(row.enrollment_no || row.enroll_no || row["enroll no."] || "").trim();
+      scoresData.forEach((row: any) => {
+        const enrollment_no = String(row.enrollment_no || "").trim();
         if (!enrollment_no || !visibleEnrollmentSet.has(enrollment_no)) return;
-        const scoreValue =
-          row.monthly_points ??
-          row.month_points ??
-          row.monthly_score ??
-          row.debate_score ??
-          row.total_points ??
-          row.points ??
-          row.score ??
-          row.total_score ??
-          0;
-        const score = Number(scoreValue) || 0;
+
+        const score = Number(row.points || row.score || 0) || 0;
         scoreMap[enrollment_no] = (scoreMap[enrollment_no] || 0) + score;
       });
+
       const rows = Object.entries(scoreMap)
         .map(([enrollment_no, score]) => ({
           enrollment_no,
           score,
           name: nameMap[enrollment_no] || enrollment_no,
-          field: fieldMap[enrollment_no] || "",
         }))
         .sort((a, b) => b.score - a.score)
         .slice(0, 5);
+
       setLeaderboard(rows);
     } catch (error: any) {
       console.error("Error fetching leaderboard:", error);
@@ -416,18 +352,28 @@ export default function Dashboard() {
   const fetchGenderData = async () => {
     try {
       setGenderLoading(true);
-      const data = await api.getStudents();
-      const rows = (data || [])
+      const response = await adminAPI.getStudents();
+      
+      if (!response.success || !Array.isArray(response.data)) {
+        setGenderRawData([]);
+        setGenderSemesters([]);
+        return;
+      }
+
+      const rows = response.data
         .filter((row: any) => String(row.member_type || "member").toLowerCase() !== "admin")
         .map((r: any) => ({
           gender: (r.gender || "unknown").toLowerCase(),
           semester: r.semester ? String(r.semester).trim() : "Unknown",
         }));
+
       setGenderRawData(rows);
-      const sems = Array.from(new Set(rows.map((r) => String(r.semester)))).sort() as string[];
+      const sems = Array.from(new Set(rows.map((r) => r.semester))).sort() as string[];
       setGenderSemesters(sems);
     } catch (e) {
       console.error("Gender data error:", e);
+      setGenderRawData([]);
+      setGenderSemesters([]);
     } finally {
       setGenderLoading(false);
     }
@@ -436,37 +382,41 @@ export default function Dashboard() {
   const fetchPerformanceAnalytics = async () => {
     try {
       setAnalyticsLoading(true);
-      const [scoresData, attendanceData, studentsData] = await Promise.all([
-        api.getScores(),
-        api.getAttendance(),
-        api.getStudents(),
+      const [scoresResponse, studentsResponse] = await Promise.all([
+        adminAPI.getScores(),
+        adminAPI.getStudents()
       ]);
-      const visibleStudents = (studentsData || []).filter(
+
+      if (!scoresResponse.success || !studentsResponse.success) {
+        throw new Error("Failed to fetch analytics data");
+      }
+
+      const scoresData = Array.isArray(scoresResponse.data) ? scoresResponse.data : [];
+      const studentsData = Array.isArray(studentsResponse.data) ? studentsResponse.data : [];
+
+      const visibleStudents = studentsData.filter(
         (student: any) => String(student.member_type || "member").toLowerCase() !== "admin"
       );
+
       const visibleEnrollmentSet = new Set(
-        visibleStudents.map((student: any) => student.enrollment_no).filter(Boolean)
+        visibleStudents.map((student: any) => String(student.enrollment_no || "").trim()).filter(Boolean)
       );
+
       const nameMap: Record<string, string> = {};
       visibleStudents.forEach((student: any) => {
-        nameMap[student.enrollment_no] = student.student_name;
+        const en = String(student.enrollment_no || "").trim();
+        if (en) nameMap[en] = String(student.student_name || "").trim();
       });
+
       const scoreMap: Record<string, number> = {};
-      (scoresData || []).forEach((row: any) => {
-        const enrollNo = row.enrollment_no || "";
-        const points = Number(row.points) || 0;
+      scoresData.forEach((row: any) => {
+        const enrollNo = String(row.enrollment_no || "").trim();
+        const points = Number(row.points || row.score || 0) || 0;
         if (enrollNo && visibleEnrollmentSet.has(enrollNo)) {
           scoreMap[enrollNo] = (scoreMap[enrollNo] || 0) + points;
         }
       });
-      const hoursMap: Record<string, number> = {};
-      (attendanceData || []).forEach((row: any) => {
-        const enrollNo = row.enrollment_no || "";
-        const hours = Number(row.hours) || 0;
-        if (enrollNo && visibleEnrollmentSet.has(enrollNo)) {
-          hoursMap[enrollNo] = (hoursMap[enrollNo] || 0) + hours;
-        }
-      });
+
       const scoreTop5 = Object.entries(scoreMap)
         .sort(([, a], [, b]) => b - a)
         .slice(0, 5)
@@ -475,64 +425,27 @@ export default function Dashboard() {
           const shortName = fullName.split(" ").slice(0, 2).join(" ");
           return { name: shortName, score: Math.round(score) };
         });
-      const attendanceTop5 = Object.entries(hoursMap)
-        .sort(([, a], [, b]) => b - a)
-        .slice(0, 5)
-        .map(([enrollNo, hours]) => {
-          const fullName = nameMap[enrollNo] || enrollNo;
-          const shortName = fullName.split(" ").slice(0, 2).join(" ");
-          return { name: shortName, hours: Number(hours.toFixed(1)) };
-        });
+
       setTopScoreChart(scoreTop5);
-      setTopAttendanceChart(attendanceTop5);
-      const monthKeys: string[] = [];
-      const monthLabels: Record<string, string> = {};
-      const today = new Date();
-      for (let i = 5; i >= 0; i -= 1) {
-        const d = new Date(today.getFullYear(), today.getMonth() - i, 1);
-        const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
-        monthKeys.push(key);
-        monthLabels[key] = d.toLocaleDateString("en-US", { month: "short", year: "2-digit" });
-      }
-      const trendMap: Record<string, { score: number; hours: number }> = {};
-      monthKeys.forEach((key) => {
-        trendMap[key] = { score: 0, hours: 0 };
-      });
-      (scoresData || []).forEach((row: any) => {
-        const enrollNo = row.enrollment_no || "";
-        const date = row.date ? String(row.date) : "";
-        const key = date.slice(0, 7);
-        if (visibleEnrollmentSet.has(enrollNo) && trendMap[key]) {
-          trendMap[key].score += Number(row.points) || 0;
-        }
-      });
-      (attendanceData || []).forEach((row: any) => {
-        const enrollNo = row.enrollment_no || "";
-        const date = row.date ? String(row.date) : "";
-        const key = date.slice(0, 7);
-        if (visibleEnrollmentSet.has(enrollNo) && trendMap[key]) {
-          trendMap[key].hours += Number(row.hours) || 0;
-        }
-      });
-      const trendRows: MonthlyTrendEntry[] = monthKeys.map((key) => ({
-        month: monthLabels[key],
-        score: Math.round(trendMap[key].score),
-        hours: Number(trendMap[key].hours.toFixed(1)),
-      }));
-      setMonthlyTrendChart(trendRows);
+      setTopAttendanceChart([]);
+      setMonthlyTrendChart([]);
+
       const scoreBandCounts = {
         "0-50": 0,
         "51-100": 0,
         "101-150": 0,
         "151+": 0,
       };
+
       visibleStudents.forEach((student: any) => {
-        const total = Number(scoreMap[student.enrollment_no] || 0);
+        const en = String(student.enrollment_no || "").trim();
+        const total = Number(scoreMap[en] || 0);
         if (total <= 50) scoreBandCounts["0-50"] += 1;
         else if (total <= 100) scoreBandCounts["51-100"] += 1;
         else if (total <= 150) scoreBandCounts["101-150"] += 1;
         else scoreBandCounts["151+"] += 1;
       });
+
       const bands: ScoreBandEntry[] = [
         { name: "0-50", value: scoreBandCounts["0-50"], color: "#94a3b8" },
         { name: "51-100", value: scoreBandCounts["51-100"], color: "#2dd4bf" },
@@ -540,13 +453,16 @@ export default function Dashboard() {
         { name: "151+", value: scoreBandCounts["151+"], color: "#115e59" },
       ];
       setScoreBandChart(bands.filter((b) => b.value > 0));
+
       const totalVisibleStudents = visibleStudents.length || 1;
       const totalScore = Object.values(scoreMap).reduce((sum, v) => sum + v, 0);
-      const totalHours = Object.values(hoursMap).reduce((sum, v) => sum + v, 0);
       setAvgScorePerStudent(Number((totalScore / totalVisibleStudents).toFixed(1)));
-      setAvgHoursPerStudent(Number((totalHours / totalVisibleStudents).toFixed(1)));
+      setAvgHoursPerStudent(0);
       setHighPerformersCount(
-        visibleStudents.filter((student: any) => Number(scoreMap[student.enrollment_no] || 0) >= 100).length
+        visibleStudents.filter((student: any) => {
+          const en = String(student.enrollment_no || "").trim();
+          return Number(scoreMap[en] || 0) >= 100;
+        }).length
       );
     } catch (error) {
       console.error("Performance analytics error:", error);
@@ -565,12 +481,17 @@ export default function Dashboard() {
   const fetchActivities = async () => {
     try {
       setActivitiesLoading(true);
-      const data = await api.getActivities();
-      // Sort by date descending and take first 5
-      const sorted = (data || [])
-        .sort((a: any, b: any) => new Date((b.date || b.created_at) || 0).getTime() - new Date((a.date || a.created_at) || 0).getTime())
-        .slice(0, 5);
-      setActivities(sorted);
+      const response = await adminAPI.getActivities();
+
+      if (response.success && Array.isArray(response.data)) {
+        const sortedData = response.data.sort((a: any, b: any) => {
+          return new Date(b.date || 0).getTime() - new Date(a.date || 0).getTime();
+        });
+        
+        setActivities(sortedData);
+      } else {
+        setActivities([]);
+      }
     } catch (error: any) {
       console.error('Error fetching activities:', error);
       setActivities([]);
@@ -782,7 +703,6 @@ export default function Dashboard() {
                   </div>
                   <div className="flex-1 min-w-0">
                     <p className="text-sm font-extrabold text-foreground truncate group-hover:text-primary transition-colors">{student.name}</p>
-                    <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-[0.12em] mt-0.5">{student.field}</p>
                   </div>
                   <div className="flex flex-col items-end">
                     <span className="font-mono text-sm font-black text-foreground">{student.score}</span>

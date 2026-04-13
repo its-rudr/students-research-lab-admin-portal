@@ -6,19 +6,19 @@ import { Input } from "@/components/ui/input";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-// import prisma from "@/lib/prismaClient"; // Removed: Prisma should not be used in React components
 import { useToast } from "@/hooks/use-toast";
 import StudentAvatar from "@/components/StudentAvatar";
 import { hasWriteAccess } from "@/lib/auth";
+import { adminAPI } from "@/lib/adminApi";
 
-// Define the student type based on your database table structure
+// Define the student type based on your API response
 interface Student {
-  id: number;
+  id?: number;
   student_name: string;
-  enrollment_no?: string;
+  enrollment_no: string;
   institute_name?: string;
   department?: string;
-  semester?: string;
+  semester?: number;
   division?: string;
   batch?: string;
   email: string;
@@ -57,14 +57,15 @@ export default function Students() {
   const fetchStudents = async () => {
     try {
       setLoading(true);
-      const res = await fetch("/api/students");
-      if (!res.ok) throw new Error("Failed to fetch students");
-      const data = await res.json();
-      const visibleStudents = (data || []).filter(
-        (row: any) => String(row.member_type || "member").toLowerCase() !== "admin"
-      );
-      setStudents(visibleStudents);
+      const response = await adminAPI.getStudents();
+      
+      if (response.success && Array.isArray(response.data)) {
+        setStudents(response.data);
+      } else {
+        setStudents([]);
+      }
     } catch (error: any) {
+      console.error('API error:', error);
       toast({
         variant: "destructive",
         title: "Error fetching students",
@@ -76,7 +77,7 @@ export default function Students() {
     }
   };
 
-  // Add new student via API
+  // Add new student
   const handleAddStudent = async () => {
     if (!canEdit) {
       toast({
@@ -86,33 +87,42 @@ export default function Students() {
       });
       return;
     }
-    try {
-      const res = await fetch("/api/students", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(formData),
-      });
-      if (!res.ok) throw new Error("Failed to add student");
-      const data = await res.json();
-      setStudents([data, ...students]);
-      setOpen(false);
-      setFormData({
-        student_name: "",
-        enrollment_no: "",
-        email: "",
-        contact_no: "",
-        department: "",
-        institute_name: "",
-        semester: "",
-        division: "",
-        batch: "",
-        gender: "male",
-        member_type: "member",
-      });
+
+    // Validate required fields
+    if (!formData.student_name || !formData.enrollment_no || !formData.email) {
       toast({
-        title: "Student added",
-        description: "New student has been added successfully.",
+        variant: "destructive",
+        title: "Validation error",
+        description: "Please fill in all required fields.",
       });
+      return;
+    }
+
+    try {
+      const response = await adminAPI.createStudent(formData);
+      
+      if (response.success && response.data) {
+        setStudents([response.data, ...students]);
+        setOpen(false);
+        setFormData({
+          student_name: "",
+          enrollment_no: "",
+          email: "",
+          contact_no: "",
+          department: "",
+          institute_name: "",
+          semester: "",
+          division: "",
+          batch: "",
+          gender: "male",
+          member_type: "member",
+        });
+        
+        toast({
+          title: "Student added",
+          description: "New student has been added successfully.",
+        });
+      }
     } catch (error: any) {
       toast({
         variant: "destructive",
@@ -133,12 +143,17 @@ export default function Students() {
 
   return (
     <div className="space-y-4 sm:space-y-5 max-w-7xl">
-      <Input
-        placeholder="Search students..."
-        className="pl-9 rounded-xl border-border bg-card text-sm"
-        value={search}
-        onChange={(e) => setSearch(e.target.value)}
-      />
+      {/* Toolbar */}
+      <div className="flex flex-col gap-3 items-start sm:flex-row sm:items-center sm:justify-between">
+        <div className="relative w-full sm:w-80">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+          <Input
+            placeholder="Search students..."
+            className="pl-9 rounded-xl border-border bg-card text-sm"
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+          />
+        </div>
         <div className="flex gap-2 w-full sm:w-auto">
           <Button variant="outline" size="sm" className="rounded-xl gap-1.5 flex-1 sm:flex-none">
             <Filter className="w-3.5 h-3.5" />
@@ -158,7 +173,7 @@ export default function Students() {
                 </DialogHeader>
                 <div className="space-y-4 pt-2">
                   <div className="space-y-1.5">
-                    <Label>Student Name</Label>
+                    <Label>Student Name *</Label>
                     <Input 
                       placeholder="Enter student name" 
                       className="rounded-xl"
@@ -167,7 +182,7 @@ export default function Students() {
                     />
                   </div>
                   <div className="space-y-1.5">
-                    <Label>Enrollment Number</Label>
+                    <Label>Enrollment Number *</Label>
                     <Input
                     placeholder="e.g. 2024CS001" 
                     className="rounded-xl"
@@ -176,13 +191,22 @@ export default function Students() {
                   />
                 </div>
                 <div className="space-y-1.5">
-                  <Label>Email</Label>
+                  <Label>Email *</Label>
                   <Input 
                     type="email" 
                     placeholder="student@example.com" 
                     className="rounded-xl"
                     value={formData.email}
                     onChange={(e) => setFormData({ ...formData, email: e.target.value })}
+                  />
+                </div>
+                <div className="space-y-1.5">
+                  <Label>Contact Number</Label>
+                  <Input 
+                    placeholder="e.g. +91 98765 43210" 
+                    className="rounded-xl"
+                    value={formData.contact_no}
+                    onChange={(e) => setFormData({ ...formData, contact_no: e.target.value })}
                   />
                 </div>
                 <div className="space-y-1.5">
@@ -212,12 +236,15 @@ export default function Students() {
                       value={formData.semester}
                       onChange={(e) => setFormData({ ...formData, semester: e.target.value })}
                     />
-            <Input
-              placeholder="e.g. A" 
-              className="rounded-xl"
-              value={formData.division}
-              onChange={(e) => setFormData({ ...formData, division: e.target.value })}
-            />
+                  </div>
+                  <div className="space-y-1.5">
+                    <Label>Division</Label>
+                    <Input 
+                      placeholder="e.g. A" 
+                      className="rounded-xl"
+                      value={formData.division}
+                      onChange={(e) => setFormData({ ...formData, division: e.target.value })}
+                    />
                   </div>
                   <div className="space-y-1.5">
                     <Label>Batch</Label>
@@ -264,9 +291,8 @@ export default function Students() {
           </Dialog>
           )}
         </div>
-      {!canEdit && (
-        <p className="text-xs text-muted-foreground">You have read-only access. Only admin can add students.</p>
-      )}
+      </div>
+      {!canEdit && <p className="text-xs text-muted-foreground">You have read-only access. Only admin can add students.</p>}
 
       {/* Loading State */}
       {loading && (
@@ -298,7 +324,7 @@ export default function Students() {
                 <AnimatePresence>
                   {filtered.map((student, i) => (
                     <motion.tr
-                      key={student.id}
+                      key={student.enrollment_no}
                       initial={{ opacity: 0 }}
                       animate={{ opacity: 1 }}
                       transition={{ delay: i * 0.03 }}

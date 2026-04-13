@@ -5,9 +5,8 @@ import { Button } from "../components/ui/button";
 import { motion } from "framer-motion";
 import StudentAvatar from "@/components/StudentAvatar";
 import { hasWriteAccess } from "@/lib/auth";
-import * as api from "@/lib/api";
-
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || "http://127.0.0.1:8000";
+import { adminAPI } from "@/lib/adminApi";
+import { useToast } from "@/hooks/use-toast";
 
 export default function Attendance() {
   const [students, setStudents] = useState<Array<{ enrollment_no: string; name: string; initials: string; hours: number; photo_url?: string }>>([]);
@@ -21,14 +20,29 @@ export default function Attendance() {
   const [allDates, setAllDates] = useState<string[]>([]);
   const canEdit = hasWriteAccess();
 
+  const { toast } = useToast();
+
   // Fetch all available attendance dates on mount
   useEffect(() => {
     const fetchDates = async () => {
-      // Fetch all attendance dates from API
-      const all = await api.getAttendance();
-      const uniqueDates = Array.from(new Set(all.map((row: any) => row.date))).sort((a, b) => b.localeCompare(a));
-      setAllDates(uniqueDates);
-      setAttendanceDate(uniqueDates[0]);
+      try {
+        const response = await adminAPI.getAttendance();
+        if (response.success && Array.isArray(response.data)) {
+          // Extract unique dates and sort descending
+          const uniqueDates = Array.from(new Set(response.data.map((row: any) => row.date))).sort((a, b) => b.localeCompare(a));
+          setAllDates(uniqueDates);
+          if (uniqueDates.length > 0) {
+            setAttendanceDate(uniqueDates[0]);
+          }
+        }
+      } catch (error) {
+        console.error("Error fetching attendance dates:", error);
+        toast({
+          variant: "destructive",
+          title: "Error",
+          description: "Failed to fetch attendance dates",
+        });
+      }
     };
     fetchDates();
   }, []);
@@ -38,40 +52,65 @@ export default function Attendance() {
     if (!attendanceDate) return;
     const fetchData = async () => {
       setLoading(true);
-      // Fetch attendance and student data from API
-      const [allAttendance, stuData] = await Promise.all([
-        api.getAttendance(),
-        api.getStudents(),
-      ]);
-      const attData = allAttendance.filter((row: any) => row.date === attendanceDate);
-      const stuMap: { [enrollment_no: string]: { name: string; initials: string; photo_url?: string } } = {};
-      stuData
-        .filter((student: any) => String(student.member_type || "member").toLowerCase() !== "admin")
-        .forEach((s: any) => {
-        stuMap[s.enrollment_no] = {
-          name: s.student_name,
-          initials: s.student_name
-            .split(" ")
-            .map((n: string) => n[0])
-            .join("")
-            .toUpperCase(),
-          photo_url: undefined,
-        };
-      });
-      const studentsList = attData
-        .filter((row: any) => stuMap[row.enrollment_no])
-        .map((row: any) => {
-        const details = stuMap[row.enrollment_no];
-        return {
-          enrollment_no: row.enrollment_no,
-          name: details ? details.name : row.enrollment_no,
-          initials: details ? details.initials : row.enrollment_no.slice(0, 2).toUpperCase(),
-          photo_url: details?.photo_url,
-          hours: row.hours,
-        };
-      });
-      setStudents(studentsList);
-      setLoading(false);
+      try {
+        const [attResponse, stuResponse] = await Promise.all([
+          adminAPI.getAttendance(),
+          adminAPI.getStudents()
+        ]);
+
+        if (!attResponse.success || !stuResponse.success) {
+          setStudents([]);
+          setLoading(false);
+          return;
+        }
+
+        // Filter attendance for selected date
+        const normalizedSelectedDate = attendanceDate.includes('T') ? attendanceDate.split('T')[0] : attendanceDate;
+        const attData = Array.isArray(attResponse.data) ? attResponse.data.filter((row: any) => {
+          const rowDate = typeof row.date === 'string' ? row.date.split('T')[0] : new Date(row.date).toISOString().split('T')[0];
+          return rowDate === normalizedSelectedDate;
+        }) : [];
+        const stuData = Array.isArray(stuResponse.data) ? stuResponse.data : [];
+
+        const stuMap: { [enrollment_no: string]: { name: string; initials: string; photo_url?: string } } = {};
+        stuData
+          .filter((student: any) => String(student.member_type || "member").toLowerCase() !== "admin")
+          .forEach((s: any) => {
+            stuMap[s.enrollment_no] = {
+              name: s.student_name,
+              initials: s.student_name
+                .split(" ")
+                .map((n: string) => n[0])
+                .join("")
+                .toUpperCase(),
+              photo_url: undefined,
+            };
+          });
+
+        const studentsList = attData
+          .filter((row: any) => stuMap[row.enrollment_no])
+          .map((row: any) => {
+            const details = stuMap[row.enrollment_no];
+            return {
+              enrollment_no: row.enrollment_no,
+              name: details ? details.name : row.enrollment_no,
+              initials: details ? details.initials : row.enrollment_no.slice(0, 2).toUpperCase(),
+              photo_url: details?.photo_url,
+              hours: row.hours,
+            };
+          });
+        setStudents(studentsList);
+        setLoading(false);
+      } catch (error) {
+        console.error("Error fetching attendance data:", error);
+        toast({
+          variant: "destructive",
+          title: "Error",
+          description: "Failed to fetch attendance data",
+        });
+        setStudents([]);
+        setLoading(false);
+      }
     };
     fetchData();
   }, [attendanceDate]);
@@ -102,16 +141,30 @@ export default function Attendance() {
       setAdding(false);
       return;
     }
+
     try {
+      // Insert attendance records
       for (const row of rows) {
-        await prisma.attendance.create({ data: row });
+        await adminAPI.markAttendance(row);
       }
+
+      toast({
+        title: "Attendance added successfully",
+      });
+
       setShowAddForm(false);
       setAddHours({});
       setAddDate("");
       setAttendanceDate(addDate);
+      
+      // Refresh the dates list
+      const response = await adminAPI.getAttendance();
+      if (response.success && Array.isArray(response.data)) {
+        const uniqueDates = Array.from(new Set(response.data.map((row: any) => row.date))).sort((a, b) => b.localeCompare(a));
+        setAllDates(uniqueDates);
+      }
     } catch (error: any) {
-      setAddError(error.message);
+      setAddError(error.message || "Failed to add attendance");
     }
     setAdding(false);
   };
@@ -129,8 +182,10 @@ export default function Attendance() {
       {showAddForm && (
         <form onSubmit={handleAddAttendance} className="mb-4 p-3 sm:p-4 border rounded bg-card flex flex-col gap-3 max-w-2xl">
           <div className="flex flex-col sm:flex-row gap-2 sm:items-center mb-2">
-            <label className="font-medium text-sm shrink-0">Date:</label>
+            <label htmlFor="attendance-date" className="font-medium text-sm shrink-0">Date:</label>
             <input
+              id="attendance-date"
+              name="attendance-date"
               type="date"
               value={addDate}
               onChange={e => setAddDate(e.target.value)}
@@ -154,6 +209,8 @@ export default function Attendance() {
                     <td className="px-2 py-1 text-center">{student.enrollment_no}</td>
                     <td className="px-2 py-1 text-center">
                       <input
+                        id={`hours-${student.enrollment_no}`}
+                        name={`hours-${student.enrollment_no}`}
                         type="number"
                         step="0.5"
                         min="0"
@@ -179,14 +236,19 @@ export default function Attendance() {
           Attendance for
         </h2>
         <select
+          id="attendance-date-select"
+          name="attendance-date-select"
           value={attendanceDate || ''}
           onChange={e => setAttendanceDate(e.target.value)}
           className="px-2 py-1.5 sm:py-1 rounded border text-sm flex-1 sm:flex-none"
           style={{ color: 'black' }}
         >
-          {allDates.map(date => (
-            <option key={date} value={date}>{date}</option>
-          ))}
+          {allDates.map(date => {
+            const displayDate = typeof date === 'string' ? date.split('T')[0] : new Date(date).toISOString().split('T')[0];
+            return (
+              <option key={date} value={date}>{displayDate}</option>
+            );
+          })}
         </select>
       </motion.div>
       <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.1 }} className="glass-card rounded-2xl overflow-hidden">

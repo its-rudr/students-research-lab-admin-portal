@@ -1,10 +1,10 @@
 import { useEffect, useState } from "react";
-import * as api from "@/lib/api";
 import { useToast } from "@/hooks/use-toast";
 import { Button } from "@/components/ui/button";
 import { Loader2, Download } from "lucide-react";
 import { Navigate } from "react-router-dom";
 import { hasWriteAccess } from "@/lib/auth";
+import { adminAPI } from "@/lib/adminApi";
 // Excel and PDF export
 import * as XLSX from "xlsx";
 import jsPDF from "jspdf";
@@ -44,8 +44,13 @@ export default function JoinRequests() {
   const fetchRows = async () => {
     setLoading(true);
     try {
-      const data = await api.getJoinRequests();
-      setRows(data || []);
+      const response = await adminAPI.getJoinRequests();
+      
+      if (response.success && Array.isArray(response.data)) {
+        setRows(response.data);
+      } else {
+        setRows([]);
+      }
     } catch (error: any) {
       toast({
         variant: "destructive",
@@ -85,22 +90,36 @@ export default function JoinRequests() {
   // Accept handler
   const handleAccept = async (id: number) => {
     try {
-      await api.updateJoinRequest(id, "accepted");
-      toast({ variant: "success", title: "Request accepted" });
-      fetchRows();
+      const response = await adminAPI.updateJoinRequest(String(id), "accepted");
+      
+      if (response.success) {
+        toast({ title: "Request accepted" });
+        fetchRows();
+      }
     } catch (error: any) {
-      toast({ variant: "destructive", title: "Error accepting request", description: error.message });
+      toast({ 
+        variant: "destructive", 
+        title: "Error accepting request", 
+        description: error.message 
+      });
     }
   };
 
   // Reject handler
   const handleReject = async (id: number) => {
     try {
-      await api.updateJoinRequest(id, "rejected");
-      toast({ variant: "success", title: "Request rejected" });
-      fetchRows();
+      const response = await adminAPI.updateJoinRequest(String(id), "rejected");
+      
+      if (response.success) {
+        toast({ title: "Request rejected" });
+        fetchRows();
+      }
     } catch (error: any) {
-      toast({ variant: "destructive", title: "Error rejecting request", description: error.message });
+      toast({ 
+        variant: "destructive", 
+        title: "Error rejecting request", 
+        description: error.message 
+      });
     }
   };
 

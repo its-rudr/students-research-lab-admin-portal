@@ -9,8 +9,7 @@ import { Label } from '../components/ui/label';
 import { Mail, Lock, Eye, EyeOff } from 'lucide-react';
 import { useToast } from '../hooks/use-toast';
 import { isAuthenticated, saveSession } from '../lib/auth';
-
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || "http://127.0.0.1:8000";
+import { adminAPI, setAuthToken } from '../lib/adminApi';
 
 export default function Login() {
   const [email, setEmail] = useState("");
@@ -31,44 +30,31 @@ export default function Login() {
     setLoading(true);
 
     try {
-      const loginEmail = email.trim().toLowerCase();
-      const passwordValue = password.trim();
+      const loginEmail = email.trim();
+      const loginPassword = password.trim();
 
-      // Call the backend API for login
-      const response = await fetch(`${API_BASE_URL}/api/admin/login`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          email: loginEmail,
-          password: passwordValue,
-        }),
-      });
+      // Call the admin login API
+      const response = await adminAPI.login(loginEmail, loginPassword);
 
-      if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.message || "Invalid credentials");
+      if (!response.success || !response.token) {
+        throw new Error(response.message || "Login failed");
       }
 
-      const data = await response.json();
+      // Save JWT token
+      setAuthToken(response.token);
 
-      if (!data.success || !data.token) {
-        throw new Error(data.message || "Login failed");
-      }
-
-      // Save session with user data and token from response
-      const userRole = data.user.role || "member"; // Default to member, not admin
+      // Save session data
+      const user = response.user;
       saveSession({
-        email: data.user.email,
-        name: data.user.name,
-        enrollmentNo: data.user.enrollmentNo,
-        role: userRole,
-      }, data.token);
+        email: user.email,
+        name: user.name,
+        enrollmentNo: user.enrollmentNo,
+        role: "admin",
+      });
 
       toast({
         title: "Login successful",
-        description: userRole === "admin" ? "Admin access enabled." : "Member access enabled.",
+        description: "Admin access enabled.",
       });
 
       navigate("/", { replace: true });
@@ -184,7 +170,7 @@ export default function Login() {
                   {loading ? (
                     <span className="flex items-center gap-2">
                       <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-                      Logging in...
+                      Loggin in...
                     </span>
                   ) : (
                     "Log in"
