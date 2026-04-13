@@ -6,7 +6,7 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
-import prisma from "@/lib/prismaClient";
+import * as api from "@/lib/api";
 import { getStoredUser } from "@/lib/auth";
 
 type MemberRecord = {
@@ -170,16 +170,7 @@ export default function MemberCV() {
     const fetchMembers = async () => {
       try {
         setLoadingMembers(true);
-        const data = await prisma.students_details.findMany({
-          select: {
-            enrollment_no: true,
-            student_name: true,
-            email: true,
-            department: true,
-            member_type: true,
-          },
-          orderBy: { student_name: "asc" },
-        });
+        const data = await api.getStudents();
         const fetchedMembers = (data || []).filter(
           (row: any) => row.enrollment_no && String(row.member_type || "member").toLowerCase() !== "admin"
         );
@@ -220,17 +211,7 @@ export default function MemberCV() {
 
       try {
         setLoadingProfile(true);
-        const data = await prisma.member_cv_profiles.findFirst({
-          where: { enrollment_no: selectedEnrollment },
-          select: {
-            research_work_summary: true,
-            research_area: true,
-            hackathons: true,
-            research_papers: true,
-            patents: true,
-            projects: true,
-          },
-        });
+        const data = await api.getMemberCVByEnrollment(selectedEnrollment);
         if (!data) {
           setFormData(emptyFormData());
           return;
@@ -346,11 +327,7 @@ export default function MemberCV() {
         updated_by: currentUser?.email || null,
       };
 
-      await prisma.member_cv_profiles.upsert({
-        where: { enrollment_no: selectedEnrollment },
-        update: payload,
-        create: payload,
-      });
+      await api.updateMemberCV(payload);
       toast({
         title: "Profile saved",
         description: `CV profile updated for ${selectedMember.student_name}.`,

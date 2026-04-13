@@ -25,8 +25,8 @@ import { useState, useEffect } from "react";
 import { motion } from "framer-motion";
 import { Users, CalendarCheck, BookOpen, Trophy, TrendingUp, Loader2, Calendar, BarChart2, PieChart as PieIcon, Activity, Clock, Sparkles, ArrowUpRight } from "lucide-react";
 import StatCard from "@/components/StatCard";
-import prisma from "@/lib/prismaClient";
 import { useToast } from "@/hooks/use-toast";
+import * as api from "@/lib/api";
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend,
   ResponsiveContainer, PieChart, Pie, Cell, LineChart, Line,
@@ -113,8 +113,8 @@ export default function Dashboard() {
   const fetchTotalStudents = async () => {
     try {
       setStudentsCountLoading(true);
-      const all = await prisma.students_details.findMany({ select: { member_type: true } });
-      const visibleStudents = (all || []).filter(
+      const students = await api.getStudents();
+      const visibleStudents = (students || []).filter(
         (row: any) => String(row.member_type || "member").toLowerCase() !== "admin"
       );
       setTotalStudents(visibleStudents.length);
@@ -129,28 +129,30 @@ export default function Dashboard() {
   const fetchAttendanceSummary = async () => {
     try {
       setAttendanceLoading(true);
-      // Fetch students (non-admin)
-      const all = await prisma.students_details.findMany({ select: { enrollment_no: true, member_type: true } });
+      // Fetch students and attendance data from API
+      const [students, attendance] = await Promise.all([
+        api.getStudents(),
+        api.getAttendance(),
+      ]);
+      
       const visibleEnrollmentSet = new Set(
-        (all || [])
+        (students || [])
           .filter((row: any) => String(row.member_type || "member").toLowerCase() !== "admin")
           .map((row: any) => row.enrollment_no)
           .filter(Boolean)
       );
+      
       const today = new Date().toISOString().split("T")[0];
       let targetDate = today;
-      // Fetch attendance from leaderboard_stats
-      const attendanceRows = await prisma.leaderboard_stats.findMany({
-        select: { enrollment_no: true, attendance: true, date: true },
-      });
-      // Filter for today's date or latest date
-      let filteredRows = (attendanceRows || []).filter((row: any) => row.date === today);
-      if (filteredRows.length === 0 && attendanceRows && attendanceRows.length > 0) {
+      
+      // Filter attendance for today's date or latest date
+      let filteredRows = (attendance || []).filter((row: any) => row.date === today);
+      if (filteredRows.length === 0 && attendance && attendance.length > 0) {
         // Use latest date
-        const dates = attendanceRows.map((row: any) => row.date).filter(Boolean);
+        const dates = attendance.map((row: any) => row.date).filter(Boolean);
         const latestDate = dates.sort().reverse()[0];
         targetDate = latestDate;
-        filteredRows = (attendanceRows || []).filter((row: any) => row.date === latestDate);
+        filteredRows = (attendance || []).filter((row: any) => row.date === latestDate);
         if (!latestDate) {
           setAttendancePercent(0);
           setAttendanceSubtitle("No attendance data");
@@ -159,12 +161,14 @@ export default function Dashboard() {
       } else {
         targetDate = today;
       }
-      // Only count students with attendance > 0
+      
+      // Count students with attendance > 0
       const presentSet = new Set(
         (filteredRows || [])
           .filter((row: any) => visibleEnrollmentSet.has(row.enrollment_no) && Number(row.attendance || 0) > 0)
           .map((row: any) => row.enrollment_no)
       );
+      
       const presentCount = presentSet.size;
       const percent = totalStudents > 0 ? Math.round((presentCount / totalStudents) * 100) : 0;
       setAttendancePercent(percent);
@@ -191,19 +195,22 @@ export default function Dashboard() {
       const currentMonth = now.getMonth() + 1;
       const currentYear = now.getFullYear();
       const cleanEnNo = enNo.replace(/[^a-z0-9]/g, '');
-      // 1. Fetch Scores
-      const allScoresRaw = await prisma.debate_scores.findMany();
+      
+      // 1. Fetch Scores from API
+      const allScoresRaw = await api.getScores();
       const userScores = (allScoresRaw || []).filter(s => {
         const dbEnNoRaw = String(s.enrollment_no || s.enroll_no || s["enroll no."] || "").trim().toLowerCase();
         const dbEnNoClean = dbEnNoRaw.replace(/[^a-z0-9]/g, '');
         return dbEnNoClean === cleanEnNo || dbEnNoRaw === enNo;
       });
+      
       // Calculate Total Lifetime Score
       const lifetime = userScores.reduce((sum, s) => {
         const val = s.total_points || s.points || s.score || 0;
         return sum + (typeof val === 'number' ? val : parseFloat(String(val)) || 0);
       }, 0);
       setUserTotalScore(lifetime);
+      
       // Calculate Monthly Score
       const monthly = userScores.filter(s => {
         const dateStr = String(s.date || s.Date || s.DATE || "").trim();
@@ -229,8 +236,9 @@ export default function Dashboard() {
         return sum + (typeof val === 'number' ? val : parseFloat(String(val)) || 0);
       }, 0);
       setUserMonthlyScore(monthly);
-      // 2. Fetch Attendance
-      const allAttRaw = await prisma.attendance.findMany();
+      
+      // 2. Fetch Attendance from API
+      const allAttRaw = await api.getAttendance();
       if (allAttRaw) {
         const userAtt = allAttRaw.filter(a => {
           const dbEnNoRaw = String(a.enrollment_no || a.enroll_no || a["enroll no."] || "").trim().toLowerCase();
@@ -278,11 +286,11 @@ export default function Dashboard() {
     }
     try {
       const normalizedEmail = String(user.email).trim().toLowerCase();
-      const student = await prisma.students_details.findFirst({
-        where: { email: normalizedEmail },
-        select: { student_name: true },
-      });
-      const studentName = String(student?.student_name || "").trim();
+      const students = await api.getStudents();
+      const student = (students || []).find(
+        (s: any) => String(s.email || "").trim().toLowerCase() === normalizedEmail
+      );
+      const studentName = String(student?.student_name || student?.name || "").trim();
       setWelcomeName(studentName);
     } catch {
       setWelcomeName("");
@@ -292,10 +300,10 @@ export default function Dashboard() {
   const fetchLeaderboard = async () => {
     try {
       setLoading(true);
-      // Fetch stats and students
+      // Fetch data from API
       const [statsData, studentsData] = await Promise.all([
-        prisma.leaderboard_stats.findMany(),
-        prisma.students_details.findMany({ select: { enrollment_no: true, student_name: true, member_type: true, field: true } }),
+        api.getScores(),
+        api.getStudents(),
       ]);
       const now = new Date();
       const currentMonth = now.getMonth() + 1;
@@ -408,7 +416,7 @@ export default function Dashboard() {
   const fetchGenderData = async () => {
     try {
       setGenderLoading(true);
-      const data = await prisma.students_details.findMany({ select: { gender: true, semester: true, member_type: true } });
+      const data = await api.getStudents();
       const rows = (data || [])
         .filter((row: any) => String(row.member_type || "member").toLowerCase() !== "admin")
         .map((r: any) => ({
@@ -429,9 +437,9 @@ export default function Dashboard() {
     try {
       setAnalyticsLoading(true);
       const [scoresData, attendanceData, studentsData] = await Promise.all([
-        prisma.debate_scores.findMany({ select: { enrollment_no: true, points: true, date: true } }),
-        prisma.attendance.findMany({ select: { enrollment_no: true, hours: true, date: true } }),
-        prisma.students_details.findMany({ select: { enrollment_no: true, student_name: true, member_type: true } }),
+        api.getScores(),
+        api.getAttendance(),
+        api.getStudents(),
       ]);
       const visibleStudents = (studentsData || []).filter(
         (student: any) => String(student.member_type || "member").toLowerCase() !== "admin"
@@ -557,11 +565,12 @@ export default function Dashboard() {
   const fetchActivities = async () => {
     try {
       setActivitiesLoading(true);
-      const data = await prisma.activities.findMany({
-        orderBy: { date: "desc" },
-        take: 5,
-      });
-      setActivities(data || []);
+      const data = await api.getActivities();
+      // Sort by date descending and take first 5
+      const sorted = (data || [])
+        .sort((a: any, b: any) => new Date((b.date || b.created_at) || 0).getTime() - new Date((a.date || a.created_at) || 0).getTime())
+        .slice(0, 5);
+      setActivities(sorted);
     } catch (error: any) {
       console.error('Error fetching activities:', error);
       setActivities([]);

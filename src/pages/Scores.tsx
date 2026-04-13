@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import prisma from "@/lib/prismaClient";
+import * as api from "@/lib/api";
 import { motion, AnimatePresence } from "framer-motion";
 import { Trophy } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -46,7 +46,7 @@ export default function Scores() {
       return;
     }
     try {
-      await prisma.debate_scores.createMany({ data: rows });
+      await api.createScores({ scores: rows });
       setShowAddForm(false);
       setAddScores({});
       setAddDate("");
@@ -61,8 +61,10 @@ export default function Scores() {
       setLoading(true);
       setFetchError("");
       try {
-        const scoresData = await prisma.leaderboard_stats.findMany();
-        const studentsData = await prisma.students_details.findMany({ select: { enrollment_no: true, student_name: true, member_type: true } });
+        const [scoresData, studentsData] = await Promise.all([
+          api.getScores(),
+          api.getStudents(),
+        ]);
       const visibleStudents = studentsData.filter(
         (stu: any) => String(stu.member_type || "member").toLowerCase() !== "admin"
       );

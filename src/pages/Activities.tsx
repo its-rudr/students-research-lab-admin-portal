@@ -6,7 +6,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from 
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
-import prisma from "@/lib/prismaClient";
+import * as api from "@/lib/api";
 import { useToast } from "@/hooks/use-toast";
 import { hasWriteAccess } from "@/lib/auth";
 
@@ -75,7 +75,7 @@ export default function Activities() {
   const fetchActivities = async () => {
     setLoading(true);
     try {
-      const data = await prisma.activities.findMany({ select: { id: true, title: true, description: true, date: true } });
+      const data = await api.getActivities();
       setActivities(data || []);
     } catch (error) {
       setActivities([]);
@@ -101,12 +101,10 @@ export default function Activities() {
       return;
     }
     try {
-      await prisma.activities.create({
-        data: {
-          title: formData.title.trim(),
-          date: formData.date,
-          description: formData.description.trim(),
-        },
+      await api.createActivity({
+        title: formData.title.trim(),
+        date: formData.date,
+        description: formData.description.trim(),
       });
       toast({ title: "Activity added successfully" });
       setOpen(false);
@@ -140,13 +138,10 @@ export default function Activities() {
       return;
     }
     try {
-      await prisma.activities.update({
-        where: { id: editingActivity.id },
-        data: {
-          title: editFormData.title.trim(),
-          date: editFormData.date,
-          description: editFormData.description.trim(),
-        },
+      await api.updateActivity(editingActivity.id, {
+        title: editFormData.title.trim(),
+        date: editFormData.date,
+        description: editFormData.description.trim(),
       });
       toast({ title: "Activity updated successfully" });
       setEditOpen(false);
@@ -171,7 +166,7 @@ export default function Activities() {
       return;
     }
     try {
-      await prisma.activities.delete({ where: { id } });
+      await api.deleteActivity(id);
       toast({ title: "Activity deleted successfully" });
       fetchActivities();
     } catch (error: any) {

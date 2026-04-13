@@ -1,11 +1,13 @@
 
 import { useState, useEffect } from "react";
-import prisma from "../lib/prismaClient";
 import { Check, X } from "lucide-react";
 import { Button } from "../components/ui/button";
 import { motion } from "framer-motion";
 import StudentAvatar from "@/components/StudentAvatar";
 import { hasWriteAccess } from "@/lib/auth";
+import * as api from "@/lib/api";
+
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || "http://127.0.0.1:8000";
 
 export default function Attendance() {
   const [students, setStudents] = useState<Array<{ enrollment_no: string; name: string; initials: string; hours: number; photo_url?: string }>>([]);
@@ -22,11 +24,8 @@ export default function Attendance() {
   // Fetch all available attendance dates on mount
   useEffect(() => {
     const fetchDates = async () => {
-      // Fetch all attendance dates from Prisma
-      const all = await prisma.attendance.findMany({
-        select: { date: true },
-        orderBy: { date: "desc" },
-      });
+      // Fetch all attendance dates from API
+      const all = await api.getAttendance();
       const uniqueDates = Array.from(new Set(all.map((row: any) => row.date))).sort((a, b) => b.localeCompare(a));
       setAllDates(uniqueDates);
       setAttendanceDate(uniqueDates[0]);
@@ -39,15 +38,12 @@ export default function Attendance() {
     if (!attendanceDate) return;
     const fetchData = async () => {
       setLoading(true);
-      // Fetch attendance for selected date
-      const attData = await prisma.attendance.findMany({
-        where: { date: attendanceDate },
-        select: { enrollment_no: true, hours: true },
-      });
-      // Fetch student details
-      const stuData = await prisma.students_details.findMany({
-        select: { enrollment_no: true, student_name: true, member_type: true },
-      });
+      // Fetch attendance and student data from API
+      const [allAttendance, stuData] = await Promise.all([
+        api.getAttendance(),
+        api.getStudents(),
+      ]);
+      const attData = allAttendance.filter((row: any) => row.date === attendanceDate);
       const stuMap: { [enrollment_no: string]: { name: string; initials: string; photo_url?: string } } = {};
       stuData
         .filter((student: any) => String(student.member_type || "member").toLowerCase() !== "admin")

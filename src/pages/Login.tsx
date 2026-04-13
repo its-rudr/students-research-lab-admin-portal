@@ -57,20 +57,18 @@ export default function Login() {
         throw new Error(data.message || "Login failed");
       }
 
-      // Save session with user data from response
+      // Save session with user data and token from response
+      const userRole = data.user.role || "member"; // Default to member, not admin
       saveSession({
         email: data.user.email,
         name: data.user.name,
         enrollmentNo: data.user.enrollmentNo,
-        role: data.user.role || "admin",
-      });
-
-      // Store the token
-      localStorage.setItem("authToken", data.token);
+        role: userRole,
+      }, data.token);
 
       toast({
         title: "Login successful",
-        description: "Admin access enabled.",
+        description: userRole === "admin" ? "Admin access enabled." : "Member access enabled.",
       });
 
       navigate("/", { replace: true });

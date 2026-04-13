@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { motion } from "framer-motion";
 import { Calendar, Loader2, Pencil, Plus, Trash2 } from "lucide-react";
-import prisma from "@/lib/prismaClient";
+import * as api from "@/lib/api";
 import { useToast } from "@/hooks/use-toast";
 import { hasWriteAccess } from "@/lib/auth";
 import { Button } from "@/components/ui/button";
@@ -48,14 +48,16 @@ export default function Timeline() {
   const fetchTimelineEntries = async () => {
     try {
       setLoading(true);
-      const data = await prisma.timeline_entries.findMany({
-        where: { is_active: true },
-        orderBy: [
-          { display_order: "asc" },
-          { id: "asc" }
-        ]
-      });
-      setEntries(data || []);
+      const data = await api.getTimeline();
+      // Filter and sort on client side
+      const filtered = (data || [])
+        .filter((entry: any) => entry.is_active !== false)
+        .sort((a: any, b: any) => {
+          const aOrder = Number(a.display_order) || a.id || 0;
+          const bOrder = Number(b.display_order) || b.id || 0;
+          return aOrder - bOrder;
+        });
+      setEntries(filtered);
     } catch (error: any) {
       toast({
         variant: "destructive",
@@ -89,14 +91,12 @@ export default function Timeline() {
 
     try {
       const orderValue = Number.parseInt(formData.display_order, 10);
-      await prisma.timeline_entries.create({
-        data: {
-          step: formData.step.trim(),
-          title: formData.title.trim(),
-          description: formData.description.trim(),
-          display_order: Number.isNaN(orderValue) ? entries.length + 1 : orderValue,
-          is_active: true,
-        }
+      await api.createTimeline({
+        step: formData.step.trim(),
+        title: formData.title.trim(),
+        description: formData.description.trim(),
+        display_order: Number.isNaN(orderValue) ? entries.length + 1 : orderValue,
+        is_active: true,
       });
       toast({ title: "Timeline entry added" });
       setOpen(false);
@@ -122,7 +122,7 @@ export default function Timeline() {
     }
 
     try {
-      await prisma.timeline_entries.delete({ where: { id } });
+      await api.deleteTimeline(id);
       toast({ title: "Timeline entry deleted" });
       fetchTimelineEntries();
     } catch (error: any) {
@@ -177,14 +177,11 @@ export default function Timeline() {
 
     try {
       const orderValue = Number.parseInt(editFormData.display_order, 10);
-      await prisma.timeline_entries.update({
-        where: { id: editingEntry.id },
-        data: {
-          step: editFormData.step.trim(),
-          title: editFormData.title.trim(),
-          description: editFormData.description.trim(),
-          display_order: Number.isNaN(orderValue) ? editingEntry.display_order : orderValue,
-        }
+      await api.updateTimeline(editingEntry.id, {
+        step: editFormData.step.trim(),
+        title: editFormData.title.trim(),
+        description: editFormData.description.trim(),
+        display_order: Number.isNaN(orderValue) ? editingEntry.display_order : orderValue,
       });
       toast({ title: "Timeline entry updated" });
       setEditOpen(false);

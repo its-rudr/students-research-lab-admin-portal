@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import prisma from "@/lib/prismaClient";
+import * as api from "@/lib/api";
 import { useToast } from "@/hooks/use-toast";
 import { Button } from "@/components/ui/button";
 import { Loader2, Download } from "lucide-react";
@@ -44,7 +44,7 @@ export default function JoinRequests() {
   const fetchRows = async () => {
     setLoading(true);
     try {
-      const data = await prisma.join_us.findMany({ orderBy: { created_at: "desc" } });
+      const data = await api.getJoinRequests();
       setRows(data || []);
     } catch (error: any) {
       toast({
@@ -85,7 +85,7 @@ export default function JoinRequests() {
   // Accept handler
   const handleAccept = async (id: number) => {
     try {
-      await prisma.join_us.update({ where: { id }, data: { status: "accepted" } });
+      await api.updateJoinRequest(id, "accepted");
       toast({ variant: "success", title: "Request accepted" });
       fetchRows();
     } catch (error: any) {
@@ -96,7 +96,7 @@ export default function JoinRequests() {
   // Reject handler
   const handleReject = async (id: number) => {
     try {
-      await prisma.join_us.update({ where: { id }, data: { status: "rejected" } });
+      await api.updateJoinRequest(id, "rejected");
       toast({ variant: "success", title: "Request rejected" });
       fetchRows();
     } catch (error: any) {

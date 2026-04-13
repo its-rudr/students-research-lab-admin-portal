@@ -46,8 +46,10 @@ export const hasWriteAccess = (): boolean => {
   return user?.role === "admin";
 };
 
-export const saveSession = (user: UserSession) => {
-  localStorage.setItem(AUTH_TOKEN_KEY, `session-${Date.now()}`);
+export const saveSession = (user: UserSession, token?: string) => {
+  if (token) {
+    localStorage.setItem(AUTH_TOKEN_KEY, token);
+  }
   localStorage.setItem(USER_DATA_KEY, JSON.stringify(user));
   localStorage.setItem("userEmail", user.email);
 };
