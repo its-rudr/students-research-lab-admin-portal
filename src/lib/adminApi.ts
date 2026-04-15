@@ -43,12 +43,7 @@ const apiCall = async (
     "Content-Type": "application/json",
   };
 
-  // In development mode, always send dev-token header
-  if (import.meta.env.DEV) {
-    headers["x-dev-token"] = "dev-bypass";
-    console.log(`[API] ${method} ${endpoint} - Using dev bypass`);
-  } else if (token) {
-    // In production, use actual token
+  if (token) {
     headers.Authorization = `Bearer ${token}`;
   }
 
