@@ -16,18 +16,6 @@ export const isAuthenticated = (): boolean => {
     const adminToken = localStorage.getItem(ADMIN_TOKEN_KEY);
     const authToken = localStorage.getItem(AUTH_TOKEN_KEY);
     
-    // In development, allow access without token
-    if (import.meta.env.DEV && !adminToken && !authToken) {
-      // Auto-save dev session
-      saveSession({
-        email: "adminsrl@gmail.com",
-        name: "Admin (Dev)",
-        enrollmentNo: "Admin@SRL",
-        role: "admin",
-      });
-      return true;
-    }
-    
     return Boolean(adminToken || authToken);
   } catch {
     return false;
