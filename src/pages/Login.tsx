@@ -49,7 +49,7 @@ export default function Login() {
         email: user.email,
         name: user.name,
         enrollmentNo: user.enrollmentNo,
-        role: "admin",
+        role: user.role || "member",
       });
 
       toast({

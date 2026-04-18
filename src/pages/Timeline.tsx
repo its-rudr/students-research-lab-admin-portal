@@ -184,12 +184,24 @@ export default function Timeline() {
       return;
     }
 
+    // Format session_date to YYYY-MM-DD string for date input
+    let formattedDate = "";
+    if (entry.session_date) {
+      try {
+        const dateObj = new Date(entry.session_date);
+        if (!isNaN(dateObj.getTime())) {
+          formattedDate = dateObj.toISOString().split('T')[0];
+        }
+      } catch (e) {
+        formattedDate = "";
+      }
+    }
+
     setEditingEntry(entry);
     setEditFormData({
       title: entry.title || "",
       description: entry.description || "",
-
-      session_date: entry.session_date || "",
+      session_date: formattedDate,
       category: entry.category || "",
       type: entry.type || "video",
       linkedin_url: entry.linkedin_url || "",
