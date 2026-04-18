@@ -33,21 +33,15 @@ export default function Login() {
       const loginEmail = email.trim();
       const loginPassword = password.trim();
 
-      console.log("Attempting login for:", loginEmail);
-
       // Call the admin login API
       const response = await adminAPI.login(loginEmail, loginPassword);
-
-      console.log("Login response:", response);
 
       if (!response.success || !response.token) {
         throw new Error(response.message || "Login failed");
       }
 
       // Save JWT token
-      console.log("Saving auth token to localStorage");
       setAuthToken(response.token);
-      console.log("Token saved successfully");
 
       // Save session data
       const user = response.user;
@@ -55,10 +49,8 @@ export default function Login() {
         email: user.email,
         name: user.name,
         enrollmentNo: user.enrollmentNo,
-        role: "admin",
+        role: user.role || "member",
       });
-
-      console.log("Session saved successfully, redirecting to dashboard");
 
       toast({
         title: "Login successful",

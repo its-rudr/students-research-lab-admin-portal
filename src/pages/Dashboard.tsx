@@ -195,37 +195,45 @@ export default function Dashboard() {
       
       // Calculate Total Lifetime Score
       const lifetime = userScores.reduce((sum, s) => {
-        const val = s.total_points || s.points || s.score || 0;
+        // Use debate_score from backend schema
+        const val = s.debate_score || s.total_points || s.points || s.score || 0;
         return sum + (typeof val === 'number' ? val : parseFloat(String(val)) || 0);
       }, 0);
       setUserTotalScore(lifetime);
 
       // Calculate Monthly Score
+      // Backend period format: "2026-04" for April 2026
       const monthly = userScores.filter(s => {
-        const dateStr = String(s.date || s.Date || s.DATE || "").trim();
-        if (!dateStr) return false;
+        const periodStr = String(s.period || s.date || s.Date || "").trim();
+        if (!periodStr) return false;
         
         try {
-          // Check for substring matches like "03/2026" or "2026-03"
+          // Check for period format "YYYY-MM" like "2026-04"
           const monthPad = currentMonth < 10 ? `0${currentMonth}` : `${currentMonth}`;
-          if (dateStr.includes(`${monthPad}/${currentYear}`) || 
-              dateStr.includes(`${currentMonth}/${currentYear}`) ||
-              dateStr.includes(`${currentYear}-${monthPad}`)) return true;
+          const periodPattern = `${currentYear}-${monthPad}`;
+          
+          if (periodStr.includes(periodPattern)) return true;
 
-          // Manual parts check
-          const parts = dateStr.split(/[\/\-\.]/);
+          // Also check for other date formats as fallback
+          if (periodStr.includes(`${monthPad}/${currentYear}`) || 
+              periodStr.includes(`${currentMonth}/${currentYear}`)) return true;
+
+          // Manual parts check for formats like "04-2026"
+          const parts = periodStr.split(/[\/\-\.]/);
           if (parts.length >= 2) {
-             const m = parseInt(parts[1]);
+             const m = parseInt(parts[0]);
              const yStr = parts[parts.length-1];
              const y = yStr.length === 2 ? 2000 + parseInt(yStr) : parseInt(yStr);
              if (m === currentMonth && y === currentYear) return true;
           }
           
-          const d = new Date(dateStr);
+          // Try parsing as full date
+          const d = new Date(periodStr);
           return !isNaN(d.getTime()) && (d.getMonth() + 1 === currentMonth && d.getFullYear() === currentYear);
         } catch { return false; }
       }).reduce((sum, s) => {
-        const val = s.total_points || s.points || s.score || 0;
+        // Use debate_score from backend schema
+        const val = s.debate_score || s.total_points || s.points || s.score || 0;
         return sum + (typeof val === 'number' ? val : parseFloat(String(val)) || 0);
       }, 0);
       
@@ -323,34 +331,27 @@ export default function Dashboard() {
       const currentYear = now.getFullYear();
 
       // Filter scores for current month only
+      // Backend returns period in format "YYYY-MM" like "2026-04"
       const currentMonthScores = scoresData.filter((row: any) => {
-        if (!row.date && !row.period) return false;
+        if (!row.period) return false;
         
-        const dateStr = String(row.date || row.period || "").trim();
-        if (!dateStr) return false;
+        const periodStr = String(row.period || "").trim();
+        if (!periodStr) return false;
 
         try {
-          // Check for substring matches like "03/2026" or "2026-03"
+          // period format from backend: "2026-04" or similar
+          // Check if period matches current month and year
           const monthPad = currentMonth < 10 ? `0${currentMonth}` : `${currentMonth}`;
-          if (dateStr.includes(`${monthPad}/${currentYear}`) || 
-              dateStr.includes(`${currentMonth}/${currentYear}`) ||
-              dateStr.includes(`${currentYear}-${monthPad}`)) {
+          const periodPattern = `${currentYear}-${monthPad}`;
+          
+          if (periodStr.includes(periodPattern)) {
             return true;
           }
 
-          // Manual parts check for date like "03/2024"
-          const parts = dateStr.split(/[\/\-\.]/);
-          if (parts.length >= 2) {
-            const m = parseInt(parts[0]);
-            const yStr = parts[parts.length - 1];
-            const y = yStr.length === 2 ? 2000 + parseInt(yStr) : parseInt(yStr);
-            if (m === currentMonth && y === currentYear) return true;
-          }
-
-          // Try parsing as full date
-          const d = new Date(dateStr);
-          if (!isNaN(d.getTime())) {
-            return d.getMonth() + 1 === currentMonth && d.getFullYear() === currentYear;
+          // Also check for alternative formats just in case
+          if (periodStr.includes(`${monthPad}/${currentYear}`) || 
+              periodStr.includes(`${currentMonth}/${currentYear}`)) {
+            return true;
           }
         } catch (e) {
           return false;
@@ -359,12 +360,14 @@ export default function Dashboard() {
       });
 
       // Aggregate scores by enrollment_no
+      // debate_score is the actual score field from the database
       const scoresMap: Record<string, number> = {};
       currentMonthScores.forEach((row: any) => {
         const enrollment_no = String(row.enrollment_no || "").trim();
         if (!enrollment_no || !visibleEnrollmentSet.has(enrollment_no)) return;
 
-        const points = Number(row.points || row.total_points || row.score || 0) || 0;
+        // Use debate_score (the correct field from backend schema)
+        const points = Number(row.debate_score || row.points || 0) || 0;
         scoresMap[enrollment_no] = (scoresMap[enrollment_no] || 0) + points;
       });
 
@@ -453,7 +456,8 @@ export default function Dashboard() {
       const scoreMap: Record<string, number> = {};
       scoresData.forEach((row: any) => {
         const enrollNo = String(row.enrollment_no || "").trim();
-        const points = Number(row.points || row.score || 0) || 0;
+        // Use debate_score from backend schema
+        const points = Number(row.debate_score || row.points || row.score || 0) || 0;
         if (enrollNo && visibleEnrollmentSet.has(enrollNo)) {
           scoreMap[enrollNo] = (scoreMap[enrollNo] || 0) + points;
         }
