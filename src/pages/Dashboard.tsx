@@ -10,7 +10,7 @@ import {
 } from "recharts";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { getStoredUser } from "@/lib/auth";
-import { Sparkles, ArrowUpRight } from "lucide-react";
+import { Sparkles } from "lucide-react";
 
 interface ScoreBandEntry {
   name: string;
@@ -317,16 +317,58 @@ export default function Dashboard() {
         nameMap[en] = String(student.student_name || "").trim();
       });
 
-      const scoreMap: Record<string, number> = {};
-      scoresData.forEach((row: any) => {
+      // Get current month and year
+      const now = new Date();
+      const currentMonth = now.getMonth() + 1;
+      const currentYear = now.getFullYear();
+
+      // Filter scores for current month only
+      const currentMonthScores = scoresData.filter((row: any) => {
+        if (!row.date && !row.period) return false;
+        
+        const dateStr = String(row.date || row.period || "").trim();
+        if (!dateStr) return false;
+
+        try {
+          // Check for substring matches like "03/2026" or "2026-03"
+          const monthPad = currentMonth < 10 ? `0${currentMonth}` : `${currentMonth}`;
+          if (dateStr.includes(`${monthPad}/${currentYear}`) || 
+              dateStr.includes(`${currentMonth}/${currentYear}`) ||
+              dateStr.includes(`${currentYear}-${monthPad}`)) {
+            return true;
+          }
+
+          // Manual parts check for date like "03/2024"
+          const parts = dateStr.split(/[\/\-\.]/);
+          if (parts.length >= 2) {
+            const m = parseInt(parts[0]);
+            const yStr = parts[parts.length - 1];
+            const y = yStr.length === 2 ? 2000 + parseInt(yStr) : parseInt(yStr);
+            if (m === currentMonth && y === currentYear) return true;
+          }
+
+          // Try parsing as full date
+          const d = new Date(dateStr);
+          if (!isNaN(d.getTime())) {
+            return d.getMonth() + 1 === currentMonth && d.getFullYear() === currentYear;
+          }
+        } catch (e) {
+          return false;
+        }
+        return false;
+      });
+
+      // Aggregate scores by enrollment_no
+      const scoresMap: Record<string, number> = {};
+      currentMonthScores.forEach((row: any) => {
         const enrollment_no = String(row.enrollment_no || "").trim();
         if (!enrollment_no || !visibleEnrollmentSet.has(enrollment_no)) return;
 
-        const score = Number(row.points || row.score || 0) || 0;
-        scoreMap[enrollment_no] = (scoreMap[enrollment_no] || 0) + score;
+        const points = Number(row.points || row.total_points || row.score || 0) || 0;
+        scoresMap[enrollment_no] = (scoresMap[enrollment_no] || 0) + points;
       });
 
-      const rows = Object.entries(scoreMap)
+      const rows = Object.entries(scoresMap)
         .map(([enrollment_no, score]) => ({
           enrollment_no,
           score,
@@ -569,17 +611,15 @@ export default function Dashboard() {
               <>
                 <div className="glass-card bg-white/60 border-green-100 p-6 rounded-[2rem] group transition-all duration-300 hover:bg-white hover:border-green-200">
                   <p className="text-green-600 font-black text-3xl mb-1">{studentsCountLoading ? "..." : totalStudents}</p>
-                  <p className="text-[10px] uppercase tracking-widest text-green-700/60 font-bold flex items-center gap-1 group-hover:text-green-700 transition-colors">
+                  <p className="text-[10px] uppercase tracking-widest text-green-700/60 font-bold">
                     Active Members
-                    <ArrowUpRight className="w-3 h-3 transition-transform group-hover:translate-x-0.5 group-hover:-translate-y-0.5" />
                   </p>
                 </div>
                 {/*
                 <div className="glass-card bg-white/60 border-green-100 p-6 rounded-[2rem] group transition-all duration-300 hover:bg-white hover:border-green-200">
                   <p className="text-green-600 font-black text-3xl mb-1">{attendanceLoading ? "..." : `${attendancePercent}%`}</p>
-                  <p className="text-[10px] uppercase tracking-widest text-green-700/60 font-bold flex items-center gap-1 group-hover:text-green-700 transition-colors">
+                  <p className="text-[10px] uppercase tracking-widest text-green-700/60 font-bold">
                     Avg. Attendance
-                    <ArrowUpRight className="w-3 h-3 transition-transform group-hover:translate-x-0.5 group-hover:-translate-y-0.5" />
                   </p>
                 </div>
                 */}
@@ -588,7 +628,7 @@ export default function Dashboard() {
               <>
                 <div className="glass-card bg-white/60 border-green-100 p-5 rounded-[2rem] group transition-all duration-300 hover:bg-white hover:border-green-200">
                   <p className="text-green-600 font-black text-2xl mb-1">{userMetricsLoading ? "..." : `${userMonthlyAttendance}%`}</p>
-                  <p className="text-[10px] uppercase tracking-widest text-green-700/60 font-bold flex items-center gap-1 group-hover:text-green-700 transition-colors">
+                  <p className="text-[10px] uppercase tracking-widest text-green-700/60 font-bold">
                     Monthly Att.
                   </p>
                 </div>
@@ -672,7 +712,7 @@ export default function Dashboard() {
                 </div>
                 Score Leaderboard
               </h2>
-              <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-[0.14em] mt-1.5 ml-12">Top Performers this month</p>
+              <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-[0.14em] mt-1.5 ml-12">Top Performers This Month</p>
             </div>
           </div>
           {loading ? (
@@ -681,7 +721,7 @@ export default function Dashboard() {
             </div>
           ) : leaderboard.length === 0 ? (
             <div className="text-center py-12 text-muted-foreground text-sm">
-              No scores available yet
+              No score data available for this month
             </div>
           ) : (
             <div className="space-y-4">
@@ -705,7 +745,7 @@ export default function Dashboard() {
                     <p className="text-sm font-extrabold text-foreground truncate group-hover:text-primary transition-colors">{student.name}</p>
                   </div>
                   <div className="flex flex-col items-end">
-                    <span className="font-mono text-sm font-black text-foreground">{student.score}</span>
+                    <span className="font-mono text-sm font-black text-foreground">{student.score} pts</span>
                     <div className="flex items-center gap-1 text-[10px] font-bold text-primary">
                       <TrendingUp className="w-3 h-3" />
                       TOP {i + 1}

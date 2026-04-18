@@ -33,6 +33,15 @@ export default function Students() {
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
   const [open, setOpen] = useState(false);
+  const [filterOpen, setFilterOpen] = useState(false);
+  const [filters, setFilters] = useState({
+    department: "",
+    batch: "",
+    semester: "",
+    division: "",
+    gender: "",
+    member_type: "",
+  });
   const [formData, setFormData] = useState({
     student_name: "",
     enrollment_no: "",
@@ -133,13 +142,39 @@ export default function Students() {
   };
 
   const filtered = students.filter(
-    (s) =>
-      (s.student_name && s.student_name.toLowerCase().includes(search.toLowerCase())) ||
-      (s.enrollment_no && s.enrollment_no.toLowerCase().includes(search.toLowerCase())) ||
-      (s.email && s.email.toLowerCase().includes(search.toLowerCase())) ||
-      (s.department && s.department.toLowerCase().includes(search.toLowerCase())) ||
-      (s.batch && s.batch.toLowerCase().includes(search.toLowerCase()))
+    (s) => {
+      // Search filter
+      const matchesSearch = 
+        (s.student_name && s.student_name.toLowerCase().includes(search.toLowerCase())) ||
+        (s.enrollment_no && s.enrollment_no.toLowerCase().includes(search.toLowerCase())) ||
+        (s.email && s.email.toLowerCase().includes(search.toLowerCase())) ||
+        (s.department && s.department.toLowerCase().includes(search.toLowerCase())) ||
+        (s.batch && s.batch.toLowerCase().includes(search.toLowerCase()));
+
+      // Apply filters
+      const departmentMatch = !filters.department || s.department?.toLowerCase() === filters.department.toLowerCase();
+      const batchMatch = !filters.batch || String(s.batch) === filters.batch;
+      const semesterMatch = !filters.semester || String(s.semester) === filters.semester;
+      const divisionMatch = !filters.division || s.division?.toLowerCase() === filters.division.toLowerCase();
+      const genderMatch = filters.gender === "all" || !filters.gender || s.gender?.toLowerCase() === filters.gender.toLowerCase();
+      const memberTypeMatch = filters.member_type === "all" || !filters.member_type || s.member_type?.toLowerCase() === filters.member_type.toLowerCase();
+
+      return matchesSearch && departmentMatch && batchMatch && semesterMatch && divisionMatch && genderMatch && memberTypeMatch;
+    }
   );
+
+  const resetFilters = () => {
+    setFilters({
+      department: "",
+      batch: "",
+      semester: "",
+      division: "",
+      gender: "all",
+      member_type: "all",
+    });
+  };
+
+  const hasActiveFilters = Object.values(filters).some(v => v !== "" && v !== "all");
 
   return (
     <div className="space-y-4 sm:space-y-5 max-w-7xl">
@@ -155,10 +190,93 @@ export default function Students() {
           />
         </div>
         <div className="flex gap-2 w-full sm:w-auto">
-          <Button variant="outline" size="sm" className="rounded-xl gap-1.5 flex-1 sm:flex-none">
-            <Filter className="w-3.5 h-3.5" />
-            Filters
-          </Button>
+          <Dialog open={filterOpen} onOpenChange={setFilterOpen}>
+            <DialogTrigger asChild>
+              <Button 
+                variant={hasActiveFilters ? "default" : "outline"} 
+                size="sm" 
+                className="rounded-xl gap-1.5 flex-1 sm:flex-none"
+              >
+                <Filter className="w-3.5 h-3.5" />
+                Filters {hasActiveFilters && `(${Object.values(filters).filter(v => v !== "").length})`}
+              </Button>
+            </DialogTrigger>
+            <DialogContent className="rounded-2xl sm:max-w-md">
+              <DialogHeader>
+                <DialogTitle>Filter Students</DialogTitle>
+              </DialogHeader>
+              <div className="space-y-4 pt-2">
+                <div className="space-y-1.5">
+                  <Label>Department</Label>
+                  <Input 
+                    placeholder="e.g. Computer Science" 
+                    className="rounded-xl"
+                    value={filters.department}
+                    onChange={(e) => setFilters({ ...filters, department: e.target.value })}
+                  />
+                </div>
+                <div className="space-y-1.5">
+                  <Label>Batch</Label>
+                  <Input 
+                    placeholder="e.g. 2024" 
+                    className="rounded-xl"
+                    value={filters.batch}
+                    onChange={(e) => setFilters({ ...filters, batch: e.target.value })}
+                  />
+                </div>
+                <div className="space-y-1.5">
+                  <Label>Semester</Label>
+                  <Input 
+                    placeholder="e.g. 5" 
+                    className="rounded-xl"
+                    value={filters.semester}
+                    onChange={(e) => setFilters({ ...filters, semester: e.target.value })}
+                  />
+                </div>
+                <div className="space-y-1.5">
+                  <Label>Division</Label>
+                  <Input 
+                    placeholder="e.g. A" 
+                    className="rounded-xl"
+                    value={filters.division}
+                    onChange={(e) => setFilters({ ...filters, division: e.target.value })}
+                  />
+                </div>
+                <div className="space-y-1.5">
+                  <Label>Gender</Label>
+                  <Select value={filters.gender} onValueChange={(value) => setFilters({ ...filters, gender: value })}>
+                    <SelectTrigger className="rounded-xl">
+                      <SelectValue placeholder="Select gender" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">All</SelectItem>
+                      <SelectItem value="male">Male</SelectItem>
+                      <SelectItem value="female">Female</SelectItem>
+                      <SelectItem value="other">Other</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="space-y-1.5">
+                  <Label>Member Type</Label>
+                  <Select value={filters.member_type} onValueChange={(value) => setFilters({ ...filters, member_type: value })}>
+                    <SelectTrigger className="rounded-xl">
+                      <SelectValue placeholder="Select member type" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">All</SelectItem>
+                      <SelectItem value="member">Member</SelectItem>
+                      <SelectItem value="lead">Lead</SelectItem>
+                      <SelectItem value="coordinator">Coordinator</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="flex justify-end gap-2 pt-2">
+                  <Button variant="outline" className="rounded-xl" onClick={resetFilters}>Reset</Button>
+                  <Button className="rounded-xl" onClick={() => setFilterOpen(false)}>Apply</Button>
+                </div>
+              </div>
+            </DialogContent>
+          </Dialog>
           {canEdit && (
             <Dialog open={open} onOpenChange={setOpen}>
               <DialogTrigger asChild>
