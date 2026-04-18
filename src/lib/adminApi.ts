@@ -43,7 +43,6 @@ const apiCall = async (
     "Content-Type": "application/json",
   };
 
-  // Send Bearer token when available
   if (token) {
     headers.Authorization = `Bearer ${token}`;
   }
@@ -227,8 +226,12 @@ export const adminAPI = {
       const token = getAuthToken();
       const headers: HeadersInit = {};
 
-      // Send Bearer token when available
-      if (token) {
+      // In development mode, always send dev-token header
+      if (import.meta.env.DEV) {
+        headers["x-dev-token"] = "dev-bypass";
+        console.log(`[API] POST /admin/upload-image - Using dev bypass`);
+      } else if (token) {
+        // In production, use actual token
         headers.Authorization = `Bearer ${token}`;
       }
 
