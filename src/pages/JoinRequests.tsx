@@ -22,13 +22,14 @@ interface JoinUsRow {
   email: string;
   batch: string;
   source: string;
-  reference_name: string | null;
+  status?: string;
   created_at: string;
 }
 
 export default function JoinRequests() {
   const [rows, setRows] = useState<JoinUsRow[]>([]);
   const [loading, setLoading] = useState(true);
+  const [updatingId, setUpdatingId] = useState<number | null>(null);
   const { toast } = useToast();
   const canAccess = hasWriteAccess();
 
@@ -74,11 +75,11 @@ export default function JoinRequests() {
     autoTable(doc, {
       head: [
         [
-          "Name", "Enrollment", "Semester", "Division", "Branch", "College", "Contact", "Email", "Batch", "Source", "Reference Name", "Created At"
+          "Name", "Enrollment", "Semester", "Division", "Branch", "College", "Contact", "Email", "Batch", "Source", "Created At"
         ]
       ],
       body: rows.map(r => [
-        r.name, r.enrollment, r.semester, r.division, r.branch, r.college, r.contact, r.email, r.batch, r.source, r.reference_name || "", r.created_at
+        r.name, r.enrollment, r.semester, r.division, r.branch, r.college, r.contact, r.email, r.batch, r.source, r.created_at
       ]),
       styles: { fontSize: 8 },
       headStyles: { fillColor: [22, 178, 157] },
@@ -89,6 +90,7 @@ export default function JoinRequests() {
 
   // Accept handler
   const handleAccept = async (id: number) => {
+    setUpdatingId(id);
     try {
       const response = await adminAPI.updateJoinRequest(String(id), "accepted");
       
@@ -102,11 +104,13 @@ export default function JoinRequests() {
         title: "Error accepting request", 
         description: error.message 
       });
+      setUpdatingId(null);
     }
   };
 
   // Reject handler
   const handleReject = async (id: number) => {
+    setUpdatingId(id);
     try {
       const response = await adminAPI.updateJoinRequest(String(id), "rejected");
       
@@ -120,6 +124,7 @@ export default function JoinRequests() {
         title: "Error rejecting request", 
         description: error.message 
       });
+      setUpdatingId(null);
     }
   };
 
@@ -151,7 +156,7 @@ export default function JoinRequests() {
                 <th className="px-2 py-2">Email</th>
                 <th className="px-2 py-2">Batch</th>
                 <th className="px-2 py-2">Source</th>
-                <th className="px-2 py-2">Reference Name</th>
+                <th className="px-2 py-2">Status</th>
                 <th className="px-2 py-2">Created At</th>
                 <th className="px-2 py-2">Actions</th>
               </tr>
@@ -169,11 +174,19 @@ export default function JoinRequests() {
                   <td className="px-2 py-1 whitespace-nowrap">{r.email}</td>
                   <td className="px-2 py-1 whitespace-nowrap">{r.batch}</td>
                   <td className="px-2 py-1 whitespace-nowrap">{r.source}</td>
-                  <td className="px-2 py-1 whitespace-nowrap">{r.reference_name}</td>
-                  <td className="px-2 py-1 whitespace-nowrap">{new Date(r.created_at).toLocaleString()}</td>
                   <td className="px-2 py-1 whitespace-nowrap">
-                    <Button size="sm" variant="success" className="mr-1" onClick={() => handleAccept(r.id)}>Accept</Button>
-                    <Button size="sm" variant="destructive" onClick={() => handleReject(r.id)}>Reject</Button>
+                    <span className={`px-2 py-1 rounded text-xs font-semibold ${
+                      r.status === 'approved' ? 'bg-green-100 text-green-800' :
+                      r.status === 'rejected' ? 'bg-red-100 text-red-800' :
+                      'bg-yellow-100 text-yellow-800'
+                    }`}>
+                      {r.status ? r.status.charAt(0).toUpperCase() + r.status.slice(1) : 'Pending'}
+                    </span>
+                  </td>
+                  <td className="px-2 py-1 whitespace-nowrap">{new Date(r.created_at).toLocaleString()}</td>
+                  <td className="px-2 py-1 whitespace-nowrap space-x-1">
+                    <Button size="sm" className="bg-green-600 hover:bg-green-700 text-white disabled:opacity-50 disabled:cursor-not-allowed" disabled={updatingId === r.id || r.status !== 'pending'} onClick={() => handleAccept(r.id)}>Accept</Button>
+                    <Button size="sm" className="bg-red-600 hover:bg-red-700 text-white disabled:opacity-50 disabled:cursor-not-allowed" disabled={updatingId === r.id || r.status !== 'pending'} onClick={() => handleReject(r.id)}>Reject</Button>
                   </td>
                 </tr>
               ))}

@@ -2,17 +2,34 @@ import { useEffect, useState } from "react";
 import { Navigate, Outlet } from "react-router-dom";
 import { Loader2 } from "lucide-react";
 import { isAuthenticated } from "@/lib/auth";
+import { adminAPI } from "@/lib/adminApi";
 
 export default function ProtectedRoute() {
 	const [loading, setLoading] = useState(true);
 	const [authenticated, setAuthenticated] = useState(false);
 
 	useEffect(() => {
-		try {
-			setAuthenticated(isAuthenticated());
-		} finally {
-			setLoading(false);
-		}
+		const verifyAuth = async () => {
+			try {
+				if (!isAuthenticated()) {
+					setAuthenticated(false);
+					return;
+				}
+
+				// Verify token is still valid on the backend
+				try {
+					await adminAPI.verifyToken();
+					setAuthenticated(true);
+				} catch (error) {
+					console.error("Token verification failed:", error);
+					setAuthenticated(false);
+				}
+			} finally {
+				setLoading(false);
+			}
+		};
+
+		verifyAuth();
 	}, []);
 
 	if (loading) {

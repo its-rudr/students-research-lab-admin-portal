@@ -186,12 +186,21 @@ export default function AdminLayout() {
           ))}
         </nav>
 
-        {/* Collapse button */}
-        <div className="mt-auto h-14 border-t border-border bg-sidebar flex items-center justify-center">
+        {/* Footer with Logout and Collapse button */}
+        <div className="mt-auto border-t border-border bg-sidebar space-y-1 p-2">
+          <Button
+            onClick={handleLogout}
+            variant="ghost"
+            size="sm"
+            className="w-full justify-start text-muted-foreground hover:text-destructive gap-2 rounded-lg"
+          >
+            <LogOut className="w-4 h-4" />
+            {sidebarOpen && <span>Sign Out</span>}
+          </Button>
           {isDesktop && (
             <button
               onClick={() => setSidebarOpen(!sidebarOpen)}
-              className="inline-flex h-8 w-8 items-center justify-center rounded-md text-muted-foreground hover:text-foreground hover:bg-muted/40 transition-colors"
+              className="w-full inline-flex h-8 items-center justify-center rounded-md text-muted-foreground hover:text-foreground hover:bg-muted/40 transition-colors"
               aria-label={sidebarOpen ? "Collapse sidebar" : "Expand sidebar"}
             >
               <motion.div animate={{ rotate: sidebarOpen ? 180 : 0 }} transition={{ duration: 0.2 }}>
@@ -228,21 +237,6 @@ export default function AdminLayout() {
             <div className="hidden md:inline-flex items-center px-3 py-1 rounded-full border border-primary/15 bg-background/80 text-primary text-xs font-semibold shadow-sm">
               {today}
             </div>
-            {user?.role === "admin" && (
-              <Button variant="ghost" size="icon" className="relative rounded-xl text-muted-foreground hover:text-foreground h-9 w-9 sm:h-10 sm:w-10">
-                {/* <Bell className="w-4 h-4 sm:w-[18px] sm:h-[18px]" /> */}
-                <span className="absolute top-2 right-2 w-2 h-2 bg-primary rounded-full" />
-              </Button>
-            )}
-            <Button
-              variant="ghost"
-              size="icon"
-              onClick={handleLogout}
-              className="rounded-xl text-muted-foreground hover:text-destructive h-9 w-9 sm:h-10 sm:w-10"
-              title="Logout"
-            >
-              <LogOut className="w-4 h-4 sm:w-[18px] sm:h-[18px]" />
-            </Button>
           </div>
         </header>
 
