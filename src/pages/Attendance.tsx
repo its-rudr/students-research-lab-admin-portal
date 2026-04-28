@@ -1,12 +1,29 @@
-
 import { useState, useEffect } from "react";
 import { Check, X } from "lucide-react";
 import { Button } from "../components/ui/button";
 import { motion } from "framer-motion";
 import StudentAvatar from "@/components/StudentAvatar";
-import { hasWriteAccess } from "@/lib/auth";
+import { getStoredUser, hasWriteAccess } from "@/lib/auth";
 import { adminAPI } from "@/lib/adminApi";
 import { useToast } from "@/hooks/use-toast";
+
+// Helper function to safely format dates
+const formatDateToISO = (date: any): string | null => {
+  try {
+    if (typeof date === 'string' && date.trim()) {
+      return date.includes('T') ? date.split('T')[0] : date;
+    }
+    if (date instanceof Date || typeof date === 'number') {
+      const dateObj = new Date(date);
+      if (!isNaN(dateObj.getTime())) {
+        return dateObj.toISOString().split('T')[0];
+      }
+    }
+    return null;
+  } catch {
+    return null;
+  }
+};
 
 export default function Attendance() {
   const [students, setStudents] = useState<Array<{ enrollment_no: string; name: string; initials: string; hours: number; photo_url?: string }>>([]);
@@ -18,88 +35,36 @@ export default function Attendance() {
   const [loading, setLoading] = useState(true);
   const [attendanceDate, setAttendanceDate] = useState<string | null>(null);
   const [allDates, setAllDates] = useState<string[]>([]);
+  const [cachedAttendanceData, setCachedAttendanceData] = useState<any[]>([]);
+  const [cachedStudentsData, setCachedStudentsData] = useState<any[]>([]);
   const canEdit = hasWriteAccess();
+  const currentUser = getStoredUser();
+  const ownEnrollment = String(currentUser?.enrollmentNo || "").trim();
 
   const { toast } = useToast();
 
-  // Fetch all available attendance dates on mount
+  // Fetch all available attendance data on mount - optimized single API call
   useEffect(() => {
-    const fetchDates = async () => {
-      try {
-        const response = await adminAPI.getAttendance();
-        if (response.success && Array.isArray(response.data)) {
-          // Extract unique dates and sort descending
-          const uniqueDates = Array.from(new Set(response.data.map((row: any) => row.date))).sort((a, b) => b.localeCompare(a));
-          setAllDates(uniqueDates);
-          if (uniqueDates.length > 0) {
-            setAttendanceDate(uniqueDates[0]);
-          }
-        }
-      } catch (error) {
-        console.error("Error fetching attendance dates:", error);
-        toast({
-          variant: "destructive",
-          title: "Error",
-          description: "Failed to fetch attendance dates",
-        });
-      }
-    };
-    fetchDates();
-  }, []);
-
-  // Fetch attendance for selected date
-  useEffect(() => {
-    if (!attendanceDate) return;
-    const fetchData = async () => {
-      setLoading(true);
+    const fetchInitialData = async () => {
       try {
         const [attResponse, stuResponse] = await Promise.all([
           adminAPI.getAttendance(),
           adminAPI.getStudents()
         ]);
-
-        if (!attResponse.success || !stuResponse.success) {
-          setStudents([]);
-          setLoading(false);
-          return;
+        
+        if (attResponse.success && Array.isArray(attResponse.data)) {
+          const uniqueDates = Array.from(new Set(attResponse.data.map((row: any) => row.period))).sort((a, b) => String(b).localeCompare(String(a))) as string[];
+          setAllDates(uniqueDates);
+          setCachedAttendanceData(attResponse.data);
+          if (uniqueDates.length > 0) {
+            setAttendanceDate(uniqueDates[0]);
+          }
         }
-
-        // Filter attendance for selected date
-        const normalizedSelectedDate = attendanceDate.includes('T') ? attendanceDate.split('T')[0] : attendanceDate;
-        const attData = Array.isArray(attResponse.data) ? attResponse.data.filter((row: any) => {
-          const rowDate = typeof row.date === 'string' ? row.date.split('T')[0] : new Date(row.date).toISOString().split('T')[0];
-          return rowDate === normalizedSelectedDate;
-        }) : [];
-        const stuData = Array.isArray(stuResponse.data) ? stuResponse.data : [];
-
-        const stuMap: { [enrollment_no: string]: { name: string; initials: string; photo_url?: string } } = {};
-        stuData
-          .filter((student: any) => String(student.member_type || "member").toLowerCase() !== "admin")
-          .forEach((s: any) => {
-            stuMap[s.enrollment_no] = {
-              name: s.student_name,
-              initials: s.student_name
-                .split(" ")
-                .map((n: string) => n[0])
-                .join("")
-                .toUpperCase(),
-              photo_url: undefined,
-            };
-          });
-
-        const studentsList = attData
-          .filter((row: any) => stuMap[row.enrollment_no])
-          .map((row: any) => {
-            const details = stuMap[row.enrollment_no];
-            return {
-              enrollment_no: row.enrollment_no,
-              name: details ? details.name : row.enrollment_no,
-              initials: details ? details.initials : row.enrollment_no.slice(0, 2).toUpperCase(),
-              photo_url: details?.photo_url,
-              hours: row.hours,
-            };
-          });
-        setStudents(studentsList);
+        
+        if (stuResponse.success && Array.isArray(stuResponse.data)) {
+          setCachedStudentsData(stuResponse.data);
+        }
+        
         setLoading(false);
       } catch (error) {
         console.error("Error fetching attendance data:", error);
@@ -108,12 +73,56 @@ export default function Attendance() {
           title: "Error",
           description: "Failed to fetch attendance data",
         });
-        setStudents([]);
         setLoading(false);
       }
     };
-    fetchData();
-  }, [attendanceDate]);
+    fetchInitialData();
+  }, []);
+
+  // Process data for selected date - uses cached data
+  useEffect(() => {
+    if (!attendanceDate || cachedAttendanceData.length === 0) return;
+
+    try {
+      const attData = cachedAttendanceData.filter((row: any) => row.period === attendanceDate);
+      const stuData = cachedStudentsData;
+
+      const stuMap: { [enrollment_no: string]: { name: string; initials: string; photo_url?: string } } = {};
+      stuData
+        .filter((student: any) => String(student.member_type || "member").toLowerCase() !== "admin")
+        .forEach((s: any) => {
+          if (!canEdit && String(s.enrollment_no || "").trim() !== ownEnrollment) {
+            return;
+          }
+
+          stuMap[s.enrollment_no] = {
+            name: s.student_name,
+            initials: s.student_name
+              .split(" ")
+              .map((n: string) => n[0])
+              .join("")
+              .toUpperCase(),
+            photo_url: undefined,
+          };
+        });
+
+      const studentsList = attData
+        .filter((row: any) => stuMap[row.enrollment_no])
+        .map((row: any) => {
+          const details = stuMap[row.enrollment_no];
+          return {
+            enrollment_no: row.enrollment_no,
+            name: details ? details.name : row.enrollment_no,
+            initials: details ? details.initials : row.enrollment_no.slice(0, 2).toUpperCase(),
+            photo_url: details?.photo_url,
+            hours: row.hours,
+          };
+        });
+      setStudents(studentsList);
+    } catch (error) {
+      console.error("Error processing attendance data:", error);
+    }
+  }, [attendanceDate, cachedAttendanceData]);
 
   const handleAddAttendance = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -160,7 +169,7 @@ export default function Attendance() {
       // Refresh the dates list
       const response = await adminAPI.getAttendance();
       if (response.success && Array.isArray(response.data)) {
-        const uniqueDates = Array.from(new Set(response.data.map((row: any) => row.date))).sort((a, b) => b.localeCompare(a));
+        const uniqueDates = Array.from(new Set(response.data.map((row: any) => row.date))).sort((a, b) => String(b).localeCompare(String(a))) as string[];
         setAllDates(uniqueDates);
       }
     } catch (error: any) {
@@ -243,10 +252,10 @@ export default function Attendance() {
           className="px-2 py-1.5 sm:py-1 rounded border text-sm flex-1 sm:flex-none"
           style={{ color: 'black' }}
         >
-          {allDates.map(date => {
-            const displayDate = typeof date === 'string' ? date.split('T')[0] : new Date(date).toISOString().split('T')[0];
+          {allDates.map((date, index) => {
+            const displayDate = formatDateToISO(date) || 'Invalid date';
             return (
-              <option key={date} value={date}>{displayDate}</option>
+              <option key={`date-${index}`} value={date}>{displayDate}</option>
             );
           })}
         </select>

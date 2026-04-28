@@ -10,7 +10,7 @@ import {
 } from "recharts";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { getStoredUser } from "@/lib/auth";
-import { Sparkles, ArrowUpRight } from "lucide-react";
+import { Sparkles } from "lucide-react";
 
 interface ScoreBandEntry {
   name: string;
@@ -92,22 +92,26 @@ export default function Dashboard() {
   });
 
   useEffect(() => {
+    // Load admin dashboards for admins AND members
     fetchLeaderboard();
     fetchActivities();
     fetchTotalStudents();
     fetchGenderData();
     fetchPerformanceAnalytics();
+    
     fetchWelcomeName();
+    
+    // Also load member-specific metrics for non-admins (to show personal stats)
     if (user?.role !== 'admin' && user?.enrollmentNo) {
       fetchUserSpecificMetrics();
     }
-  }, [user?.email, user?.enrollmentNo]);
+  }, [user?.email, user?.enrollmentNo, user?.role]);
 
   useEffect(() => {
-    if (!studentsCountLoading) {
+    if (user?.role === 'admin' && !studentsCountLoading) {
       fetchAttendanceSummary();
     }
-  }, [studentsCountLoading, totalStudents]);
+  }, [studentsCountLoading, totalStudents, user?.role]);
 
   const fetchTotalStudents = async () => {
     try {
@@ -195,37 +199,45 @@ export default function Dashboard() {
       
       // Calculate Total Lifetime Score
       const lifetime = userScores.reduce((sum, s) => {
-        const val = s.total_points || s.points || s.score || 0;
+        // Use debate_score from backend schema
+        const val = s.debate_score || s.total_points || s.points || s.score || 0;
         return sum + (typeof val === 'number' ? val : parseFloat(String(val)) || 0);
       }, 0);
       setUserTotalScore(lifetime);
 
       // Calculate Monthly Score
+      // Backend period format: "2026-04" for April 2026
       const monthly = userScores.filter(s => {
-        const dateStr = String(s.date || s.Date || s.DATE || "").trim();
-        if (!dateStr) return false;
+        const periodStr = String(s.period || s.date || s.Date || "").trim();
+        if (!periodStr) return false;
         
         try {
-          // Check for substring matches like "03/2026" or "2026-03"
+          // Check for period format "YYYY-MM" like "2026-04"
           const monthPad = currentMonth < 10 ? `0${currentMonth}` : `${currentMonth}`;
-          if (dateStr.includes(`${monthPad}/${currentYear}`) || 
-              dateStr.includes(`${currentMonth}/${currentYear}`) ||
-              dateStr.includes(`${currentYear}-${monthPad}`)) return true;
+          const periodPattern = `${currentYear}-${monthPad}`;
+          
+          if (periodStr.includes(periodPattern)) return true;
 
-          // Manual parts check
-          const parts = dateStr.split(/[\/\-\.]/);
+          // Also check for other date formats as fallback
+          if (periodStr.includes(`${monthPad}/${currentYear}`) || 
+              periodStr.includes(`${currentMonth}/${currentYear}`)) return true;
+
+          // Manual parts check for formats like "04-2026"
+          const parts = periodStr.split(/[\/\-\.]/);
           if (parts.length >= 2) {
-             const m = parseInt(parts[1]);
+             const m = parseInt(parts[0]);
              const yStr = parts[parts.length-1];
              const y = yStr.length === 2 ? 2000 + parseInt(yStr) : parseInt(yStr);
              if (m === currentMonth && y === currentYear) return true;
           }
           
-          const d = new Date(dateStr);
+          // Try parsing as full date
+          const d = new Date(periodStr);
           return !isNaN(d.getTime()) && (d.getMonth() + 1 === currentMonth && d.getFullYear() === currentYear);
         } catch { return false; }
       }).reduce((sum, s) => {
-        const val = s.total_points || s.points || s.score || 0;
+        // Use debate_score from backend schema
+        const val = s.debate_score || s.total_points || s.points || s.score || 0;
         return sum + (typeof val === 'number' ? val : parseFloat(String(val)) || 0);
       }, 0);
       
@@ -258,30 +270,13 @@ export default function Dashboard() {
       return;
     }
 
-    if (!user?.email) {
-      setWelcomeName("");
+    // For members, use the name from stored user object
+    if (user?.name) {
+      setWelcomeName(String(user.name).trim());
       return;
     }
 
-    try {
-      const normalizedEmail = String(user.email).trim().toLowerCase();
-      const response = await adminAPI.getStudents();
-      
-      if (response.success && Array.isArray(response.data)) {
-        const student = response.data.find((s: any) => 
-          String(s.email || "").trim().toLowerCase() === normalizedEmail
-        );
-        
-        if (student) {
-          setWelcomeName(String(student.student_name || "").trim());
-        } else {
-          setWelcomeName("");
-        }
-      }
-    } catch (error) {
-      console.error("Error fetching welcome name:", error);
-      setWelcomeName("");
-    }
+    setWelcomeName("");
   };
 
   const fetchLeaderboard = async () => {
@@ -317,16 +312,53 @@ export default function Dashboard() {
         nameMap[en] = String(student.student_name || "").trim();
       });
 
-      const scoreMap: Record<string, number> = {};
-      scoresData.forEach((row: any) => {
+      // Get current month and year
+      const now = new Date();
+      const currentMonth = now.getMonth() + 1;
+      const currentYear = now.getFullYear();
+
+      // Filter scores for current month only
+      // Backend returns period in format "YYYY-MM" like "2026-04"
+      const currentMonthScores = scoresData.filter((row: any) => {
+        if (!row.period) return false;
+        
+        const periodStr = String(row.period || "").trim();
+        if (!periodStr) return false;
+
+        try {
+          // period format from backend: "2026-04" or similar
+          // Check if period matches current month and year
+          const monthPad = currentMonth < 10 ? `0${currentMonth}` : `${currentMonth}`;
+          const periodPattern = `${currentYear}-${monthPad}`;
+          
+          if (periodStr.includes(periodPattern)) {
+            return true;
+          }
+
+          // Also check for alternative formats just in case
+          if (periodStr.includes(`${monthPad}/${currentYear}`) || 
+              periodStr.includes(`${currentMonth}/${currentYear}`)) {
+            return true;
+          }
+        } catch (e) {
+          return false;
+        }
+        return false;
+      });
+
+      // Aggregate scores by enrollment_no
+      // debate_score is the actual score field from the database
+      const scoresMap: Record<string, number> = {};
+      currentMonthScores.forEach((row: any) => {
         const enrollment_no = String(row.enrollment_no || "").trim();
         if (!enrollment_no || !visibleEnrollmentSet.has(enrollment_no)) return;
 
-        const score = Number(row.points || row.score || 0) || 0;
-        scoreMap[enrollment_no] = (scoreMap[enrollment_no] || 0) + score;
+        // Use debate_score (the correct field from backend schema)
+        const points = Number(row.debate_score || row.points || 0) || 0;
+        scoresMap[enrollment_no] = (scoresMap[enrollment_no] || 0) + points;
       });
 
-      const rows = Object.entries(scoreMap)
+      const rows = Object.entries(scoresMap)
         .map(([enrollment_no, score]) => ({
           enrollment_no,
           score,
@@ -411,7 +443,8 @@ export default function Dashboard() {
       const scoreMap: Record<string, number> = {};
       scoresData.forEach((row: any) => {
         const enrollNo = String(row.enrollment_no || "").trim();
-        const points = Number(row.points || row.score || 0) || 0;
+        // Use debate_score from backend schema
+        const points = Number(row.debate_score || row.points || row.score || 0) || 0;
         if (enrollNo && visibleEnrollmentSet.has(enrollNo)) {
           scoreMap[enrollNo] = (scoreMap[enrollNo] || 0) + points;
         }
@@ -569,17 +602,15 @@ export default function Dashboard() {
               <>
                 <div className="glass-card bg-white/60 border-green-100 p-6 rounded-[2rem] group transition-all duration-300 hover:bg-white hover:border-green-200">
                   <p className="text-green-600 font-black text-3xl mb-1">{studentsCountLoading ? "..." : totalStudents}</p>
-                  <p className="text-[10px] uppercase tracking-widest text-green-700/60 font-bold flex items-center gap-1 group-hover:text-green-700 transition-colors">
+                  <p className="text-[10px] uppercase tracking-widest text-green-700/60 font-bold">
                     Active Members
-                    <ArrowUpRight className="w-3 h-3 transition-transform group-hover:translate-x-0.5 group-hover:-translate-y-0.5" />
                   </p>
                 </div>
                 {/*
                 <div className="glass-card bg-white/60 border-green-100 p-6 rounded-[2rem] group transition-all duration-300 hover:bg-white hover:border-green-200">
                   <p className="text-green-600 font-black text-3xl mb-1">{attendanceLoading ? "..." : `${attendancePercent}%`}</p>
-                  <p className="text-[10px] uppercase tracking-widest text-green-700/60 font-bold flex items-center gap-1 group-hover:text-green-700 transition-colors">
+                  <p className="text-[10px] uppercase tracking-widest text-green-700/60 font-bold">
                     Avg. Attendance
-                    <ArrowUpRight className="w-3 h-3 transition-transform group-hover:translate-x-0.5 group-hover:-translate-y-0.5" />
                   </p>
                 </div>
                 */}
@@ -588,7 +619,7 @@ export default function Dashboard() {
               <>
                 <div className="glass-card bg-white/60 border-green-100 p-5 rounded-[2rem] group transition-all duration-300 hover:bg-white hover:border-green-200">
                   <p className="text-green-600 font-black text-2xl mb-1">{userMetricsLoading ? "..." : `${userMonthlyAttendance}%`}</p>
-                  <p className="text-[10px] uppercase tracking-widest text-green-700/60 font-bold flex items-center gap-1 group-hover:text-green-700 transition-colors">
+                  <p className="text-[10px] uppercase tracking-widest text-green-700/60 font-bold">
                     Monthly Att.
                   </p>
                 </div>
@@ -610,7 +641,8 @@ export default function Dashboard() {
         </div>
       </motion.div>
 
-      {/* Stats Grid */}
+      {/* Admin Dashboard - Stats Grid and Charts */}
+      {/* Stats Grid - Visible to all users */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6 sm:gap-8">
         <StatCard
           icon={Users}
@@ -672,7 +704,7 @@ export default function Dashboard() {
                 </div>
                 Score Leaderboard
               </h2>
-              <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-[0.14em] mt-1.5 ml-12">Top Performers this month</p>
+              <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-[0.14em] mt-1.5 ml-12">Top Performers This Month</p>
             </div>
           </div>
           {loading ? (
@@ -681,7 +713,7 @@ export default function Dashboard() {
             </div>
           ) : leaderboard.length === 0 ? (
             <div className="text-center py-12 text-muted-foreground text-sm">
-              No scores available yet
+              No score data available for this month
             </div>
           ) : (
             <div className="space-y-4">
@@ -705,7 +737,7 @@ export default function Dashboard() {
                     <p className="text-sm font-extrabold text-foreground truncate group-hover:text-primary transition-colors">{student.name}</p>
                   </div>
                   <div className="flex flex-col items-end">
-                    <span className="font-mono text-sm font-black text-foreground">{student.score}</span>
+                    <span className="font-mono text-sm font-black text-foreground">{student.score} pts</span>
                     <div className="flex items-center gap-1 text-[10px] font-bold text-primary">
                       <TrendingUp className="w-3 h-3" />
                       TOP {i + 1}

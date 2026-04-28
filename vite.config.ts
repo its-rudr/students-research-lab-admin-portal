@@ -2,6 +2,16 @@ import { defineConfig } from "vite";
 import react from "@vitejs/plugin-react-swc";
 import path from "path";
 
+// Plugin to handle Prisma client resolution
+const prismaPlugin = {
+  name: 'prisma-resolver',
+  resolveId(id) {
+    if (id === '@prisma/client' || id === '.prisma/client') {
+      return path.resolve(__dirname, "./src/lib/prismaClient.ts");
+    }
+  }
+};
+
 // https://vitejs.dev/config/
 export default defineConfig(({ mode }) => ({
   server: {
@@ -15,7 +25,7 @@ export default defineConfig(({ mode }) => ({
     port: 4173,
     host: "::",
   },
-  plugins: [react()],
+  plugins: [prismaPlugin, react()],
   resolve: {
     alias: {
       "@": path.resolve(__dirname, "./src"),

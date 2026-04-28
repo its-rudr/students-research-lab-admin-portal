@@ -26,22 +26,20 @@ import { NavLink } from "react-router-dom";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/hooks/use-toast";
-import { clearSession, getStoredUser } from "@/lib/auth";
+import { clearSession, getStoredUser, hasWriteAccess } from "@/lib/auth";
 import ScrollToTopButton from "@/components/ScrollToTopButton";
 
-const navItems = [
-  { title: "Dashboard", path: "/", icon: LayoutDashboard },
-  { title: "Students", path: "/students", icon: Users },
-  { title: "Research", path: "/research", icon: BookOpen },
-  { title: "Attendance", path: "/attendance", icon: CalendarCheck },
-  { title: "Scores", path: "/scores", icon: Trophy },
-  { title: "Activities", path: "/activities", icon: Calendar },
-  { title: "Timeline", path: "/timeline", icon: Milestone },
-  { title: "Achievements", path: "/achievements", icon: Award },
-  { title: "Member CV", path: "/member-cv", icon: FileUser },
-  // { title: "Sheet Sync", path: "/sheet-sync", icon: RefreshCw },
-  // { title: "Google Sheets", path: "/google-sheets", icon: FileSpreadsheet },
-  { title: "Join Requests", path: "/join-requests", icon: ShieldCheck },
+const allNavItems = [
+  { title: "Dashboard", path: "/", icon: LayoutDashboard, requiresAdmin: false },
+  { title: "Students", path: "/students", icon: Users, requiresAdmin: true },
+  { title: "Research", path: "/research", icon: BookOpen, requiresAdmin: true },
+  { title: "Attendance", path: "/attendance", icon: CalendarCheck, requiresAdmin: false },
+  { title: "Scores", path: "/scores", icon: Trophy, requiresAdmin: false },
+  { title: "Activities", path: "/activities", icon: Calendar, requiresAdmin: true },
+  { title: "Timeline", path: "/timeline", icon: Milestone, requiresAdmin: true },
+  { title: "Achievements", path: "/achievements", icon: Award, requiresAdmin: true },
+  { title: "Member CV", path: "/member-cv", icon: FileUser, requiresAdmin: false },
+  { title: "Join Requests", path: "/join-requests", icon: ShieldCheck, requiresAdmin: true },
 ];
 
 const pageNames: Record<string, string> = {
@@ -158,8 +156,8 @@ export default function AdminLayout() {
 
         {/* Nav Items */}
         <nav className="flex-1 px-3 py-4 space-y-1 overflow-y-auto">
-          {navItems
-            .filter((item) => item.path !== "/join-requests" || user?.role === "admin")
+          {allNavItems
+            .filter((item) => !item.requiresAdmin || hasWriteAccess())
             .map((item) => (
             <NavLink
               key={item.path}
@@ -186,12 +184,21 @@ export default function AdminLayout() {
           ))}
         </nav>
 
-        {/* Collapse button */}
-        <div className="mt-auto h-14 border-t border-border bg-sidebar flex items-center justify-center">
+        {/* Footer with Logout and Collapse button */}
+        <div className="mt-auto border-t border-border bg-sidebar space-y-1 p-2">
+          <Button
+            onClick={handleLogout}
+            variant="ghost"
+            size="sm"
+            className="w-full justify-start text-muted-foreground hover:text-destructive gap-2 rounded-lg"
+          >
+            <LogOut className="w-4 h-4" />
+            {sidebarOpen && <span>Sign Out</span>}
+          </Button>
           {isDesktop && (
             <button
               onClick={() => setSidebarOpen(!sidebarOpen)}
-              className="inline-flex h-8 w-8 items-center justify-center rounded-md text-muted-foreground hover:text-foreground hover:bg-muted/40 transition-colors"
+              className="w-full inline-flex h-8 items-center justify-center rounded-md text-muted-foreground hover:text-foreground hover:bg-muted/40 transition-colors"
               aria-label={sidebarOpen ? "Collapse sidebar" : "Expand sidebar"}
             >
               <motion.div animate={{ rotate: sidebarOpen ? 180 : 0 }} transition={{ duration: 0.2 }}>
@@ -228,21 +235,6 @@ export default function AdminLayout() {
             <div className="hidden md:inline-flex items-center px-3 py-1 rounded-full border border-primary/15 bg-background/80 text-primary text-xs font-semibold shadow-sm">
               {today}
             </div>
-            {user?.role === "admin" && (
-              <Button variant="ghost" size="icon" className="relative rounded-xl text-muted-foreground hover:text-foreground h-9 w-9 sm:h-10 sm:w-10">
-                {/* <Bell className="w-4 h-4 sm:w-[18px] sm:h-[18px]" /> */}
-                <span className="absolute top-2 right-2 w-2 h-2 bg-primary rounded-full" />
-              </Button>
-            )}
-            <Button
-              variant="ghost"
-              size="icon"
-              onClick={handleLogout}
-              className="rounded-xl text-muted-foreground hover:text-destructive h-9 w-9 sm:h-10 sm:w-10"
-              title="Logout"
-            >
-              <LogOut className="w-4 h-4 sm:w-[18px] sm:h-[18px]" />
-            </Button>
           </div>
         </header>
 

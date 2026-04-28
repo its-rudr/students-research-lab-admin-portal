@@ -49,12 +49,12 @@ export default function Login() {
         email: user.email,
         name: user.name,
         enrollmentNo: user.enrollmentNo,
-        role: "admin",
-      });
+        role: user.role || "member",
+      }, response.token);
 
       toast({
         title: "Login successful",
-        description: "Admin access enabled.",
+        description: user.role === "admin" ? "Admin access enabled." : "Member access granted.",
       });
 
       navigate("/", { replace: true });

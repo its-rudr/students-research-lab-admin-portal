@@ -3,7 +3,7 @@
  * Centralized API client for all admin CRUD operations
  */
 
-const API_BASE_URL = import.meta.env.VITE_BACKEND_URL || "http://localhost:8000/api";
+const API_BASE_URL = import.meta.env.VITE_BACKEND_URL || "https://studentsresearchlab-coge.onrender.com/api";
 
 // Get token from localStorage
 const getAuthToken = (): string | null => {
@@ -43,9 +43,11 @@ const apiCall = async (
     "Content-Type": "application/json",
   };
 
-  // Send Bearer token when available
   if (token) {
     headers.Authorization = `Bearer ${token}`;
+  } else if (!endpoint.includes("/login")) {
+    // If no token and not logging in, this will fail with 401
+    console.warn("No auth token found for protected endpoint:", endpoint);
   }
 
   const options: RequestInit = {
@@ -57,14 +59,38 @@ const apiCall = async (
     options.body = JSON.stringify(body);
   }
 
-  const response = await fetch(`${API_BASE_URL}${endpoint}`, options);
+  try {
+    const fullUrl = `${API_BASE_URL}${endpoint}`;
+    console.debug(`[API] ${method} ${endpoint}${token ? " (with token)" : " (no token)"}`);
+    
+    const response = await fetch(fullUrl, options);
 
-  if (!response.ok) {
-    const errorData = await response.json();
-    throw new Error(errorData.message || `API Error: ${response.statusText}`);
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => ({}));
+      
+      console.error(`[API Error] ${method} ${endpoint} - Status: ${response.status}`, errorData);
+      
+      // Handle 401 - clear token and redirect to login
+      if (response.status === 401) {
+        console.error("Unauthorized (401) - clearing token and redirecting to login");
+        clearAuthToken();
+        // Redirect to login page
+        if (typeof window !== "undefined") {
+          window.location.href = "/login";
+        }
+        throw new Error("Session expired. Please log in again.");
+      }
+      
+      throw new Error(errorData.message || `API Error: ${response.statusText}`);
+    }
+
+    const data = await response.json();
+    console.debug(`[API Success] ${method} ${endpoint}`);
+    return data;
+  } catch (error: any) {
+    // Re-throw with better error messages
+    throw error;
   }
-
-  return response.json();
 };
 
 export const adminAPI = {
@@ -116,8 +142,12 @@ export const adminAPI = {
   },
 
   // Scores APIs
-  async getScores() {
-    return apiCall("/admin/scores");
+  async getScores(month?: string, year?: number) {
+    let endpoint = "/admin/scores";
+    if (month && year) {
+      endpoint += `?month=${month}&year=${year}`;
+    }
+    return apiCall(endpoint);
   },
 
   async getScoresByStudent(enrollmentNo: string) {
@@ -174,7 +204,7 @@ export const adminAPI = {
     return apiCall(`/admin/timeline/${id}`, "DELETE");
   },
 
-  // Research APIs
+  // Research APIs (research papers)
   async getResearch() {
     return apiCall("/admin/research");
   },
@@ -189,6 +219,23 @@ export const adminAPI = {
 
   async deleteResearch(id: string) {
     return apiCall(`/admin/research/${id}`, "DELETE");
+  },
+
+  // Research Projects APIs
+  async getResearchProjects() {
+    return apiCall("/admin/research-projects");
+  },
+
+  async createResearchProject(data: any) {
+    return apiCall("/admin/research-projects", "POST", data);
+  },
+
+  async updateResearchProject(id: string, data: any) {
+    return apiCall(`/admin/research-projects/${id}`, "PUT", data);
+  },
+
+  async deleteResearchProject(id: string) {
+    return apiCall(`/admin/research-projects/${id}`, "DELETE");
   },
 
   // Join Requests APIs
@@ -227,8 +274,12 @@ export const adminAPI = {
       const token = getAuthToken();
       const headers: HeadersInit = {};
 
-      // Send Bearer token when available
-      if (token) {
+      // In development mode, always send dev-token header
+      if (import.meta.env.DEV) {
+        headers["x-dev-token"] = "dev-bypass";
+        console.log(`[API] POST /admin/upload-image - Using dev bypass`);
+      } else if (token) {
+        // In production, use actual token
         headers.Authorization = `Bearer ${token}`;
       }
 
@@ -239,7 +290,18 @@ export const adminAPI = {
       });
 
       if (!response.ok) {
-        const errorData = await response.json();
+        const errorData = await response.json().catch(() => ({}));
+        
+        // Handle 401 - clear token and redirect to login
+        if (response.status === 401) {
+          console.error("Unauthorized (401) - clearing token and redirecting to login");
+          clearAuthToken();
+          if (typeof window !== "undefined") {
+            window.location.href = "/login";
+          }
+          throw new Error("Session expired. Please log in again.");
+        }
+        
         throw new Error(errorData.message || `Upload failed: ${response.statusText}`);
       }
 

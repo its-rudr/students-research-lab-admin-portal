@@ -6,7 +6,7 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
-import { supabase } from "@/lib/supabaseClient";
+import * as api from "@/lib/api";
 import { getStoredUser } from "@/lib/auth";
 
 type MemberRecord = {
@@ -167,34 +167,46 @@ export default function MemberCV() {
   );
 
   useEffect(() => {
+    if (isAdmin) {
+      return;
+    }
+
+    const ownEnrollment = currentUser?.enrollmentNo || "";
+    if (!ownEnrollment) {
+      if (selectedEnrollment) {
+        setSelectedEnrollment("");
+      }
+      return;
+    }
+
+    if (selectedEnrollment !== ownEnrollment) {
+      setSelectedEnrollment(ownEnrollment);
+    }
+  }, [isAdmin, currentUser?.enrollmentNo, selectedEnrollment]);
+
+  useEffect(() => {
     const fetchMembers = async () => {
       try {
         setLoadingMembers(true);
-        const { data, error } = await supabase
-          .from("students_details")
-          .select("enrollment_no,student_name,email,department,member_type")
-          .order("student_name", { ascending: true });
-
-        if (error) {
-          throw error;
-        }
-
+        const data = await api.getStudents();
         const fetchedMembers = (data || []).filter(
           (row: any) => row.enrollment_no && String(row.member_type || "member").toLowerCase() !== "admin"
         );
-        setMembers(fetchedMembers);
 
         if (!currentUser) {
+          setMembers([]);
           setSelectedEnrollment("");
           return;
         }
 
         if (isAdmin) {
+          setMembers(fetchedMembers);
           setSelectedEnrollment(fetchedMembers[0]?.enrollment_no || "");
         } else {
           const ownEnrollment = currentUser.enrollmentNo || "";
-          const exists = fetchedMembers.some((row: any) => row.enrollment_no === ownEnrollment);
-          setSelectedEnrollment(exists ? ownEnrollment : fetchedMembers[0]?.enrollment_no || "");
+          const ownProfile = fetchedMembers.filter((row: any) => row.enrollment_no === ownEnrollment);
+          setMembers(ownProfile);
+          setSelectedEnrollment(ownProfile[0]?.enrollment_no || "");
         }
       } catch (error: any) {
         toast({
@@ -219,21 +231,11 @@ export default function MemberCV() {
 
       try {
         setLoadingProfile(true);
-        const { data, error } = await supabase
-          .from("member_cv_profiles")
-          .select("research_work_summary,research_area,hackathons,research_papers,patents,projects")
-          .eq("enrollment_no", selectedEnrollment)
-          .maybeSingle();
-
-        if (error) {
-          throw error;
-        }
-
+        const data = await api.getMemberCVByEnrollment(selectedEnrollment);
         if (!data) {
           setFormData(emptyFormData());
           return;
         }
-
         setFormData({
           research_work_summary: String(data.research_work_summary || ""),
           research_area: String(data.research_area || ""),
@@ -345,14 +347,7 @@ export default function MemberCV() {
         updated_by: currentUser?.email || null,
       };
 
-      const { error } = await supabase
-        .from("member_cv_profiles")
-        .upsert(payload, { onConflict: "enrollment_no" });
-
-      if (error) {
-        throw error;
-      }
-
+      await api.updateMemberCV(payload);
       toast({
         title: "Profile saved",
         description: `CV profile updated for ${selectedMember.student_name}.`,
@@ -403,11 +398,17 @@ export default function MemberCV() {
               <div className="h-10 rounded-xl border border-border flex items-center px-3 text-sm text-muted-foreground">
                 <Loader2 className="w-4 h-4 animate-spin mr-2" /> Loading members...
               </div>
+            ) : !isAdmin ? (
+              <Input
+                value={selectedMember ? `${selectedMember.student_name} (${selectedMember.enrollment_no})` : "No profile available"}
+                disabled
+                className="rounded-xl"
+              />
             ) : (
               <Select
                 value={selectedEnrollment}
                 onValueChange={(value) => setSelectedEnrollment(value)}
-                disabled={!isAdmin || members.length === 0}
+                disabled={members.length === 0}
               >
                 <SelectTrigger className="rounded-xl bg-card">
                   <SelectValue placeholder="Select member" />

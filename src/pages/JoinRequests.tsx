@@ -11,7 +11,7 @@ import jsPDF from "jspdf";
 import autoTable from "jspdf-autotable";
 
 interface JoinUsRow {
-  id: number;
+  id: string;
   name: string;
   enrollment: string;
   semester: string;
@@ -22,24 +22,29 @@ interface JoinUsRow {
   email: string;
   batch: string;
   source: string;
-  reference_name: string | null;
+  department?: string | null;
+  after_ug?: string | null;
+  cpi?: string | null;
+  ieee_member_2026?: string | null;
+  ieee_membership?: string | null;
+  resume_link?: string | null;
+  research_expertise?: string[];
+  research_publication?: string | null;
+  research_ongoing?: string | null;
+  status?: string;
   created_at: string;
 }
 
 export default function JoinRequests() {
   const [rows, setRows] = useState<JoinUsRow[]>([]);
   const [loading, setLoading] = useState(true);
+  const [updatingId, setUpdatingId] = useState<string | null>(null);
   const { toast } = useToast();
   const canAccess = hasWriteAccess();
 
   useEffect(() => {
-    if (!canAccess) return;
     fetchRows();
-  }, [canAccess]);
-
-  if (!canAccess) {
-    return <Navigate to="/" replace />;
-  }
+  }, []);
 
   const fetchRows = async () => {
     setLoading(true);
@@ -47,7 +52,14 @@ export default function JoinRequests() {
       const response = await adminAPI.getJoinRequests();
       
       if (response.success && Array.isArray(response.data)) {
-        setRows(response.data);
+        setRows(
+          response.data.map((row: any) => ({
+            ...row,
+            id: String(row.id),
+            status: row.status || "pending",
+            research_expertise: Array.isArray(row.research_expertise) ? row.research_expertise : [],
+          }))
+        );
       } else {
         setRows([]);
       }
@@ -74,11 +86,11 @@ export default function JoinRequests() {
     autoTable(doc, {
       head: [
         [
-          "Name", "Enrollment", "Semester", "Division", "Branch", "College", "Contact", "Email", "Batch", "Source", "Reference Name", "Created At"
+          "Name", "Enrollment", "Semester", "Division", "Branch", "College", "Contact", "Email", "Batch", "Source", "Created At"
         ]
       ],
       body: rows.map(r => [
-        r.name, r.enrollment, r.semester, r.division, r.branch, r.college, r.contact, r.email, r.batch, r.source, r.reference_name || "", r.created_at
+        r.name, r.enrollment, r.semester, r.division, r.branch, r.college, r.contact, r.email, r.batch, r.source, r.created_at
       ]),
       styles: { fontSize: 8 },
       headStyles: { fillColor: [22, 178, 157] },
@@ -89,8 +101,10 @@ export default function JoinRequests() {
 
   // Accept handler
   const handleAccept = async (id: number) => {
+    const requestId = String(id);
+    setUpdatingId(requestId);
     try {
-      const response = await adminAPI.updateJoinRequest(String(id), "accepted");
+      const response = await adminAPI.updateJoinRequest(requestId, "approved");
       
       if (response.success) {
         toast({ title: "Request accepted" });
@@ -102,13 +116,16 @@ export default function JoinRequests() {
         title: "Error accepting request", 
         description: error.message 
       });
+      setUpdatingId(null);
     }
   };
 
   // Reject handler
   const handleReject = async (id: number) => {
+    const requestId = String(id);
+    setUpdatingId(requestId);
     try {
-      const response = await adminAPI.updateJoinRequest(String(id), "rejected");
+      const response = await adminAPI.updateJoinRequest(requestId, "rejected");
       
       if (response.success) {
         toast({ title: "Request rejected" });
@@ -120,7 +137,17 @@ export default function JoinRequests() {
         title: "Error rejecting request", 
         description: error.message 
       });
+      setUpdatingId(null);
     }
+  };
+
+  const formatValue = (value: unknown) => {
+    if (Array.isArray(value)) {
+      return value.length > 0 ? value.join(", ") : "-";
+    }
+
+    const text = String(value || "").trim();
+    return text.length > 0 ? text : "-";
   };
 
   return (
@@ -151,7 +178,8 @@ export default function JoinRequests() {
                 <th className="px-2 py-2">Email</th>
                 <th className="px-2 py-2">Batch</th>
                 <th className="px-2 py-2">Source</th>
-                <th className="px-2 py-2">Reference Name</th>
+                <th className="px-2 py-2">Details</th>
+                <th className="px-2 py-2">Status</th>
                 <th className="px-2 py-2">Created At</th>
                 <th className="px-2 py-2">Actions</th>
               </tr>
@@ -169,11 +197,41 @@ export default function JoinRequests() {
                   <td className="px-2 py-1 whitespace-nowrap">{r.email}</td>
                   <td className="px-2 py-1 whitespace-nowrap">{r.batch}</td>
                   <td className="px-2 py-1 whitespace-nowrap">{r.source}</td>
-                  <td className="px-2 py-1 whitespace-nowrap">{r.reference_name}</td>
-                  <td className="px-2 py-1 whitespace-nowrap">{new Date(r.created_at).toLocaleString()}</td>
+                  <td className="px-2 py-1 min-w-96 text-xs leading-5 text-muted-foreground">
+                    <div className="space-y-0.5">
+                      <p><span className="font-medium text-foreground">Department:</span> {formatValue(r.department)}</p>
+                      <p><span className="font-medium text-foreground">After UG:</span> {formatValue(r.after_ug)}</p>
+                      <p><span className="font-medium text-foreground">CPI:</span> {formatValue(r.cpi)}</p>
+                      <p><span className="font-medium text-foreground">IEEE Member 2026:</span> {formatValue(r.ieee_member_2026)}</p>
+                      <p><span className="font-medium text-foreground">IEEE Membership:</span> {formatValue(r.ieee_membership)}</p>
+                      <p><span className="font-medium text-foreground">Research Expertise:</span> {formatValue(r.research_expertise)}</p>
+                      <p><span className="font-medium text-foreground">Research Paper:</span> {formatValue(r.research_publication)}</p>
+                      <p><span className="font-medium text-foreground">Ongoing Research:</span> {formatValue(r.research_ongoing)}</p>
+                      <p>
+                        <span className="font-medium text-foreground">Resume:</span>{" "}
+                        {r.resume_link ? (
+                          <a href={r.resume_link} target="_blank" rel="noreferrer" className="text-primary underline underline-offset-2">
+                            Open link
+                          </a>
+                        ) : (
+                          "-"
+                        )}
+                      </p>
+                    </div>
+                  </td>
                   <td className="px-2 py-1 whitespace-nowrap">
-                    <Button size="sm" variant="success" className="mr-1" onClick={() => handleAccept(r.id)}>Accept</Button>
-                    <Button size="sm" variant="destructive" onClick={() => handleReject(r.id)}>Reject</Button>
+                    <span className={`px-2 py-1 rounded text-xs font-semibold ${
+                      r.status === 'approved' ? 'bg-green-100 text-green-800' :
+                      r.status === 'rejected' ? 'bg-red-100 text-red-800' :
+                      'bg-yellow-100 text-yellow-800'
+                    }`}>
+                      {r.status ? r.status.charAt(0).toUpperCase() + r.status.slice(1) : 'Pending'}
+                    </span>
+                  </td>
+                  <td className="px-2 py-1 whitespace-nowrap">{new Date(r.created_at).toLocaleString()}</td>
+                  <td className="px-2 py-1 whitespace-nowrap space-x-1">
+                    <Button size="sm" className="bg-green-600 hover:bg-green-700 text-white disabled:opacity-50 disabled:cursor-not-allowed" disabled={updatingId === r.id} onClick={() => handleAccept(Number(r.id))}>Accept</Button>
+                    <Button size="sm" className="bg-red-600 hover:bg-red-700 text-white disabled:opacity-50 disabled:cursor-not-allowed" disabled={updatingId === r.id} onClick={() => handleReject(Number(r.id))}>Reject</Button>
                   </td>
                 </tr>
               ))}
