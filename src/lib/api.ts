@@ -3,13 +3,18 @@
  * All requests automatically include the auth token from localStorage
  */
 
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || "http://127.0.0.1:8000";
+const RAW_API_BASE_URL =
+  import.meta.env.VITE_BACKEND_URL ||
+  import.meta.env.VITE_API_BASE_URL ||
+  "http://127.0.0.1:8000/api";
+
+const API_BASE_URL = RAW_API_BASE_URL.replace(/\/api\/?$/, "");
 
 console.log("[API Client] Initialized with BASE_URL:", API_BASE_URL);
 
 function getAuthToken(): string | null {
   try {
-    const token = localStorage.getItem("authToken");
+    const token = localStorage.getItem("adminToken") || localStorage.getItem("authToken");
     if (!token) {
       console.warn("[API] No token found in localStorage!");
     }

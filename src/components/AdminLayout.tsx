@@ -26,22 +26,20 @@ import { NavLink } from "react-router-dom";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/hooks/use-toast";
-import { clearSession, getStoredUser } from "@/lib/auth";
+import { clearSession, getStoredUser, hasWriteAccess } from "@/lib/auth";
 import ScrollToTopButton from "@/components/ScrollToTopButton";
 
-const navItems = [
-  { title: "Dashboard", path: "/", icon: LayoutDashboard },
-  { title: "Students", path: "/students", icon: Users },
-  { title: "Research", path: "/research", icon: BookOpen },
-  { title: "Attendance", path: "/attendance", icon: CalendarCheck },
-  { title: "Scores", path: "/scores", icon: Trophy },
-  { title: "Activities", path: "/activities", icon: Calendar },
-  { title: "Timeline", path: "/timeline", icon: Milestone },
-  { title: "Achievements", path: "/achievements", icon: Award },
-  { title: "Member CV", path: "/member-cv", icon: FileUser },
-  // { title: "Sheet Sync", path: "/sheet-sync", icon: RefreshCw },
-  // { title: "Google Sheets", path: "/google-sheets", icon: FileSpreadsheet },
-  { title: "Join Requests", path: "/join-requests", icon: ShieldCheck },
+const allNavItems = [
+  { title: "Dashboard", path: "/", icon: LayoutDashboard, requiresAdmin: false },
+  { title: "Students", path: "/students", icon: Users, requiresAdmin: true },
+  { title: "Research", path: "/research", icon: BookOpen, requiresAdmin: true },
+  { title: "Attendance", path: "/attendance", icon: CalendarCheck, requiresAdmin: false },
+  { title: "Scores", path: "/scores", icon: Trophy, requiresAdmin: false },
+  { title: "Activities", path: "/activities", icon: Calendar, requiresAdmin: true },
+  { title: "Timeline", path: "/timeline", icon: Milestone, requiresAdmin: true },
+  { title: "Achievements", path: "/achievements", icon: Award, requiresAdmin: true },
+  { title: "Member CV", path: "/member-cv", icon: FileUser, requiresAdmin: false },
+  { title: "Join Requests", path: "/join-requests", icon: ShieldCheck, requiresAdmin: true },
 ];
 
 const pageNames: Record<string, string> = {
@@ -158,8 +156,8 @@ export default function AdminLayout() {
 
         {/* Nav Items */}
         <nav className="flex-1 px-3 py-4 space-y-1 overflow-y-auto">
-          {navItems
-            .filter((item) => item.path !== "/join-requests" || user?.role === "admin")
+          {allNavItems
+            .filter((item) => !item.requiresAdmin || hasWriteAccess())
             .map((item) => (
             <NavLink
               key={item.path}

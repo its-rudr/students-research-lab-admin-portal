@@ -167,6 +167,24 @@ export default function MemberCV() {
   );
 
   useEffect(() => {
+    if (isAdmin) {
+      return;
+    }
+
+    const ownEnrollment = currentUser?.enrollmentNo || "";
+    if (!ownEnrollment) {
+      if (selectedEnrollment) {
+        setSelectedEnrollment("");
+      }
+      return;
+    }
+
+    if (selectedEnrollment !== ownEnrollment) {
+      setSelectedEnrollment(ownEnrollment);
+    }
+  }, [isAdmin, currentUser?.enrollmentNo, selectedEnrollment]);
+
+  useEffect(() => {
     const fetchMembers = async () => {
       try {
         setLoadingMembers(true);
@@ -174,19 +192,21 @@ export default function MemberCV() {
         const fetchedMembers = (data || []).filter(
           (row: any) => row.enrollment_no && String(row.member_type || "member").toLowerCase() !== "admin"
         );
-        setMembers(fetchedMembers);
 
         if (!currentUser) {
+          setMembers([]);
           setSelectedEnrollment("");
           return;
         }
 
         if (isAdmin) {
+          setMembers(fetchedMembers);
           setSelectedEnrollment(fetchedMembers[0]?.enrollment_no || "");
         } else {
           const ownEnrollment = currentUser.enrollmentNo || "";
-          const exists = fetchedMembers.some((row: any) => row.enrollment_no === ownEnrollment);
-          setSelectedEnrollment(exists ? ownEnrollment : fetchedMembers[0]?.enrollment_no || "");
+          const ownProfile = fetchedMembers.filter((row: any) => row.enrollment_no === ownEnrollment);
+          setMembers(ownProfile);
+          setSelectedEnrollment(ownProfile[0]?.enrollment_no || "");
         }
       } catch (error: any) {
         toast({
@@ -378,11 +398,17 @@ export default function MemberCV() {
               <div className="h-10 rounded-xl border border-border flex items-center px-3 text-sm text-muted-foreground">
                 <Loader2 className="w-4 h-4 animate-spin mr-2" /> Loading members...
               </div>
+            ) : !isAdmin ? (
+              <Input
+                value={selectedMember ? `${selectedMember.student_name} (${selectedMember.enrollment_no})` : "No profile available"}
+                disabled
+                className="rounded-xl"
+              />
             ) : (
               <Select
                 value={selectedEnrollment}
                 onValueChange={(value) => setSelectedEnrollment(value)}
-                disabled={!isAdmin || members.length === 0}
+                disabled={members.length === 0}
               >
                 <SelectTrigger className="rounded-xl bg-card">
                   <SelectValue placeholder="Select member" />

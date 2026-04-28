@@ -92,22 +92,26 @@ export default function Dashboard() {
   });
 
   useEffect(() => {
+    // Load admin dashboards for admins AND members
     fetchLeaderboard();
     fetchActivities();
     fetchTotalStudents();
     fetchGenderData();
     fetchPerformanceAnalytics();
+    
     fetchWelcomeName();
+    
+    // Also load member-specific metrics for non-admins (to show personal stats)
     if (user?.role !== 'admin' && user?.enrollmentNo) {
       fetchUserSpecificMetrics();
     }
-  }, [user?.email, user?.enrollmentNo]);
+  }, [user?.email, user?.enrollmentNo, user?.role]);
 
   useEffect(() => {
-    if (!studentsCountLoading) {
+    if (user?.role === 'admin' && !studentsCountLoading) {
       fetchAttendanceSummary();
     }
-  }, [studentsCountLoading, totalStudents]);
+  }, [studentsCountLoading, totalStudents, user?.role]);
 
   const fetchTotalStudents = async () => {
     try {
@@ -266,30 +270,13 @@ export default function Dashboard() {
       return;
     }
 
-    if (!user?.email) {
-      setWelcomeName("");
+    // For members, use the name from stored user object
+    if (user?.name) {
+      setWelcomeName(String(user.name).trim());
       return;
     }
 
-    try {
-      const normalizedEmail = String(user.email).trim().toLowerCase();
-      const response = await adminAPI.getStudents();
-      
-      if (response.success && Array.isArray(response.data)) {
-        const student = response.data.find((s: any) => 
-          String(s.email || "").trim().toLowerCase() === normalizedEmail
-        );
-        
-        if (student) {
-          setWelcomeName(String(student.student_name || "").trim());
-        } else {
-          setWelcomeName("");
-        }
-      }
-    } catch (error) {
-      console.error("Error fetching welcome name:", error);
-      setWelcomeName("");
-    }
+    setWelcomeName("");
   };
 
   const fetchLeaderboard = async () => {
@@ -654,7 +641,8 @@ export default function Dashboard() {
         </div>
       </motion.div>
 
-      {/* Stats Grid */}
+      {/* Admin Dashboard - Stats Grid and Charts */}
+      {/* Stats Grid - Visible to all users */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6 sm:gap-8">
         <StatCard
           icon={Users}

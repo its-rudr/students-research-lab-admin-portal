@@ -142,8 +142,12 @@ export const adminAPI = {
   },
 
   // Scores APIs
-  async getScores() {
-    return apiCall("/admin/scores");
+  async getScores(month?: string, year?: number) {
+    let endpoint = "/admin/scores";
+    if (month && year) {
+      endpoint += `?month=${month}&year=${year}`;
+    }
+    return apiCall(endpoint);
   },
 
   async getScoresByStudent(enrollmentNo: string) {
@@ -200,7 +204,7 @@ export const adminAPI = {
     return apiCall(`/admin/timeline/${id}`, "DELETE");
   },
 
-  // Research APIs
+  // Research APIs (research papers)
   async getResearch() {
     return apiCall("/admin/research");
   },
@@ -215,6 +219,23 @@ export const adminAPI = {
 
   async deleteResearch(id: string) {
     return apiCall(`/admin/research/${id}`, "DELETE");
+  },
+
+  // Research Projects APIs
+  async getResearchProjects() {
+    return apiCall("/admin/research-projects");
+  },
+
+  async createResearchProject(data: any) {
+    return apiCall("/admin/research-projects", "POST", data);
+  },
+
+  async updateResearchProject(id: string, data: any) {
+    return apiCall(`/admin/research-projects/${id}`, "PUT", data);
+  },
+
+  async deleteResearchProject(id: string) {
+    return apiCall(`/admin/research-projects/${id}`, "DELETE");
   },
 
   // Join Requests APIs
