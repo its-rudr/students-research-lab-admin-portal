@@ -55,6 +55,7 @@ interface Activity {
 
 export default function Dashboard() {
   const [leaderboard, setLeaderboard] = useState<LeaderboardEntry[]>([]);
+  const [leaderboardPeriodLabel, setLeaderboardPeriodLabel] = useState<string>("Latest available month");
   const [activities, setActivities] = useState<Activity[]>([]);
   const [loading, setLoading] = useState(true);
   const [activitiesLoading, setActivitiesLoading] = useState(true);
@@ -182,14 +183,16 @@ export default function Dashboard() {
       // 1. Fetch Scores from backend API
       const scoresResponse = await adminAPI.getScores();
 
-      if (!scoresResponse.success || !Array.isArray(scoresResponse.data)) {
+      if (!scoresResponse.success) {
         setUserTotalScore(0);
         setUserMonthlyScore(0);
         setUserMonthlyAttendance(0);
         return;
       }
 
-      const allScoresRaw = scoresResponse.data;
+      const allScoresRaw = Array.isArray(scoresResponse.data?.leaderboardStats)
+        ? scoresResponse.data.leaderboardStats
+        : [];
 
       const userScores = allScoresRaw.filter(s => {
         const dbEnNoRaw = String(s.enrollment_no || s.enroll_no || s["enroll no."] || "").trim().toLowerCase();
@@ -294,7 +297,12 @@ export default function Dashboard() {
         return;
       }
 
-      const scoresData = Array.isArray(scoresResponse.data) ? scoresResponse.data : [];
+      const scoresData = Array.isArray(scoresResponse.data?.leaderboardStats)
+        ? scoresResponse.data.leaderboardStats
+        : [];
+      const availableMonths = Array.isArray(scoresResponse.data?.availableMonths)
+        ? scoresResponse.data.availableMonths
+        : [];
       const studentsData = Array.isArray(studentsResponse.data) ? studentsResponse.data : [];
 
       const visibleStudents = studentsData.filter(
@@ -312,60 +320,104 @@ export default function Dashboard() {
         nameMap[en] = String(student.student_name || "").trim();
       });
 
-      // Get current month and year
-      const now = new Date();
-      const currentMonth = now.getMonth() + 1;
-      const currentYear = now.getFullYear();
+      // Pick latest period that actually has leaderboard rows for visible students.
+      let selectedPeriod = "";
+      let selectedPeriodLabel = "Latest available month";
 
-      // Filter scores for current month only
-      // Backend returns period in format "YYYY-MM" like "2026-04"
-      const currentMonthScores = scoresData.filter((row: any) => {
-        if (!row.period) return false;
-        
-        const periodStr = String(row.period || "").trim();
-        if (!periodStr) return false;
+      const formatPeriodAsMonthLabel = (period: string) => {
+        const normalized = String(period || "").trim();
+        const match = normalized.match(/^(\d{4})-(\d{2})$/);
+        if (!match) return normalized;
 
-        try {
-          // period format from backend: "2026-04" or similar
-          // Check if period matches current month and year
-          const monthPad = currentMonth < 10 ? `0${currentMonth}` : `${currentMonth}`;
-          const periodPattern = `${currentYear}-${monthPad}`;
-          
-          if (periodStr.includes(periodPattern)) {
-            return true;
-          }
+        const year = Number(match[1]);
+        const month = Number(match[2]);
+        if (month < 1 || month > 12) return normalized;
 
-          // Also check for alternative formats just in case
-          if (periodStr.includes(`${monthPad}/${currentYear}`) || 
-              periodStr.includes(`${currentMonth}/${currentYear}`)) {
-            return true;
-          }
-        } catch (e) {
-          return false;
+        return new Date(year, month - 1, 1).toLocaleDateString("en-US", {
+          month: "short",
+          year: "numeric",
+        });
+      };
+
+      const getPeriodRank = (period: string) => {
+        const normalized = String(period || "").trim();
+        const ym = normalized.match(/^(\d{4})-(\d{2})$/);
+        if (ym) {
+          const y = Number(ym[1]);
+          const m = Number(ym[2]);
+          if (m >= 1 && m <= 12) return y * 12 + m;
         }
-        return false;
+
+        const parsed = new Date(`1 ${normalized}`);
+        if (!Number.isNaN(parsed.getTime())) {
+          return parsed.getFullYear() * 12 + (parsed.getMonth() + 1);
+        }
+
+        return -1;
+      };
+
+      const candidatePeriods = Array.from(
+        new Set(scoresData.map((row: any) => String(row.period || "").trim()).filter(Boolean))
+      );
+      candidatePeriods.sort((a, b) => {
+        const diff = getPeriodRank(b) - getPeriodRank(a);
+        return diff !== 0 ? diff : b.localeCompare(a);
       });
 
-      // Aggregate scores by enrollment_no
-      // debate_score is the actual score field from the database
-      const scoresMap: Record<string, number> = {};
-      currentMonthScores.forEach((row: any) => {
+      selectedPeriod = candidatePeriods[0] || "";
+
+      const monthLabelByValue = new Map(
+        availableMonths.map((m: any) => [String(m?.value || "").trim(), String(m?.label || "").trim()])
+      );
+
+      selectedPeriodLabel =
+        monthLabelByValue.get(selectedPeriod) || formatPeriodAsMonthLabel(selectedPeriod) || "Latest available month";
+
+      setLeaderboardPeriodLabel(selectedPeriodLabel);
+
+      const latestPeriodScores = scoresData.filter((row: any) => {
+        const periodStr = String(row.period || "").trim();
+        if (!periodStr || !selectedPeriod) return false;
+        return periodStr === selectedPeriod;
+      });
+
+      // 1) Current period score map (primary rank)
+      const currentScoresMap: Record<string, number> = {};
+      latestPeriodScores.forEach((row: any) => {
         const enrollment_no = String(row.enrollment_no || "").trim();
-        if (!enrollment_no || !visibleEnrollmentSet.has(enrollment_no)) return;
+        if (!enrollment_no) return;
 
-        // Use debate_score (the correct field from backend schema)
         const points = Number(row.debate_score || row.points || 0) || 0;
-        scoresMap[enrollment_no] = (scoresMap[enrollment_no] || 0) + points;
+        currentScoresMap[enrollment_no] = (currentScoresMap[enrollment_no] || 0) + points;
       });
 
-      const rows = Object.entries(scoresMap)
+      // 2) Overall historical score map (tie-breaker)
+      const overallScoresMap: Record<string, number> = {};
+      scoresData.forEach((row: any) => {
+        const enrollment_no = String(row.enrollment_no || "").trim();
+        if (!enrollment_no) return;
+
+        const points = Number(row.debate_score || row.points || 0) || 0;
+        overallScoresMap[enrollment_no] = (overallScoresMap[enrollment_no] || 0) + points;
+      });
+
+      const rows = Object.entries(currentScoresMap)
         .map(([enrollment_no, score]) => ({
           enrollment_no,
           score,
+          overallScore: overallScoresMap[enrollment_no] || 0,
           name: nameMap[enrollment_no] || enrollment_no,
         }))
-        .sort((a, b) => b.score - a.score)
-        .slice(0, 5);
+        .sort((a, b) => {
+          // Primary: current period score desc
+          if (b.score !== a.score) return b.score - a.score;
+          // Tie-breaker: overall historical score desc
+          if (b.overallScore !== a.overallScore) return b.overallScore - a.overallScore;
+          // Final deterministic fallback
+          return a.name.localeCompare(b.name);
+        })
+        .slice(0, 5)
+        .map(({ enrollment_no, score, name }) => ({ enrollment_no, score, name }));
 
       setLeaderboard(rows);
     } catch (error: any) {
@@ -423,7 +475,9 @@ export default function Dashboard() {
         throw new Error("Failed to fetch analytics data");
       }
 
-      const scoresData = Array.isArray(scoresResponse.data) ? scoresResponse.data : [];
+      const scoresData = Array.isArray(scoresResponse.data?.leaderboardStats)
+        ? scoresResponse.data.leaderboardStats
+        : [];
       const studentsData = Array.isArray(studentsResponse.data) ? studentsResponse.data : [];
 
       const visibleStudents = studentsData.filter(
@@ -704,7 +758,8 @@ export default function Dashboard() {
                 </div>
                 Score Leaderboard
               </h2>
-              <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-[0.14em] mt-1.5 ml-12">Top Performers This Month</p>
+              <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-[0.14em] mt-1.5 ml-12">Top Performers ({leaderboardPeriodLabel})</p>
+              <p className="text-[11px] text-muted-foreground mt-1 ml-12">Note: Showing latest available month data: {leaderboardPeriodLabel}.</p>
             </div>
           </div>
           {loading ? (
@@ -713,7 +768,7 @@ export default function Dashboard() {
             </div>
           ) : leaderboard.length === 0 ? (
             <div className="text-center py-12 text-muted-foreground text-sm">
-              No score data available for this month
+              No score data available for {leaderboardPeriodLabel}
             </div>
           ) : (
             <div className="space-y-4">

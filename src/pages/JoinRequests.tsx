@@ -105,10 +105,11 @@ export default function JoinRequests() {
     setUpdatingId(requestId);
     try {
       const response = await adminAPI.updateJoinRequest(requestId, "approved");
-      
+
       if (response.success) {
+        // Optimistically update UI since backend currently does not persist status
+        setRows((prev) => prev.map((r) => (r.id === requestId ? { ...r, status: "approved" } : r)));
         toast({ title: "Request accepted" });
-        fetchRows();
       }
     } catch (error: any) {
       toast({ 
@@ -116,6 +117,7 @@ export default function JoinRequests() {
         title: "Error accepting request", 
         description: error.message 
       });
+    } finally {
       setUpdatingId(null);
     }
   };
@@ -126,10 +128,11 @@ export default function JoinRequests() {
     setUpdatingId(requestId);
     try {
       const response = await adminAPI.updateJoinRequest(requestId, "rejected");
-      
+
       if (response.success) {
+        // Optimistically update UI since backend currently does not persist status
+        setRows((prev) => prev.map((r) => (r.id === requestId ? { ...r, status: "rejected" } : r)));
         toast({ title: "Request rejected" });
-        fetchRows();
       }
     } catch (error: any) {
       toast({ 
@@ -137,6 +140,7 @@ export default function JoinRequests() {
         title: "Error rejecting request", 
         description: error.message 
       });
+    } finally {
       setUpdatingId(null);
     }
   };
@@ -230,8 +234,8 @@ export default function JoinRequests() {
                   </td>
                   <td className="px-2 py-1 whitespace-nowrap">{new Date(r.created_at).toLocaleString()}</td>
                   <td className="px-2 py-1 whitespace-nowrap space-x-1">
-                    <Button size="sm" className="bg-green-600 hover:bg-green-700 text-white disabled:opacity-50 disabled:cursor-not-allowed" disabled={updatingId === r.id} onClick={() => handleAccept(Number(r.id))}>Accept</Button>
-                    <Button size="sm" className="bg-red-600 hover:bg-red-700 text-white disabled:opacity-50 disabled:cursor-not-allowed" disabled={updatingId === r.id} onClick={() => handleReject(Number(r.id))}>Reject</Button>
+                    <Button size="sm" className="bg-green-600 hover:bg-green-700 text-white disabled:opacity-50 disabled:cursor-not-allowed" disabled={updatingId === r.id || r.status !== 'pending'} onClick={() => handleAccept(Number(r.id))}>Accept</Button>
+                    <Button size="sm" className="bg-red-600 hover:bg-red-700 text-white disabled:opacity-50 disabled:cursor-not-allowed" disabled={updatingId === r.id || r.status !== 'pending'} onClick={() => handleReject(Number(r.id))}>Reject</Button>
                   </td>
                 </tr>
               ))}
